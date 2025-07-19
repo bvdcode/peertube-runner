@@ -6,6 +6,13 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  CONTEXT_DIR: .
+  IMAGE_TAG: v1.0
+  DOCKERFILE: Dockerfile
+  DOCKER_NAMESPACE: bvdcode
+  DOCKER_IMAGE_NAME: peertube-runner-gpu
+
 jobs:
   push_to_registry:
     name: push docker image to hub
@@ -28,10 +35,10 @@ jobs:
       - name: build and push docker image to Docker Hub
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ env.CONTEXT_DIR }}
           push: true
-          tags: bvdcode/peertube-runner-gpu:latest
-          file: Dockerfile
+          tags: ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          file: ${{ env.DOCKERFILE }}
 
       - name: login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -43,7 +50,7 @@ jobs:
       - name: build and push docker image to GitHub Container Registry
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ env.CONTEXT_DIR }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/peertube-runner-gpu:latest
-          file: Dockerfile
+          tags: ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          file: ${{ env.DOCKERFILE }}
