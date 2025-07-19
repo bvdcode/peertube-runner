@@ -12,6 +12,36 @@ mkdir -p "$CONFIG_DIR"
 # Check if config already exists in target location
 if [ -f "$CONFIG_TARGET" ]; then
     echo "Config file already exists at $CONFIG_TARGET, using existing configuration"
+    
+    # Update dynamic parameters if environment variables are set
+    if [ -n "$PEERTUBE_RUNNER_CONCURRENCY" ] || [ -n "$PEERTUBE_RUNNER_FFMPEG_THREADS" ] || [ -n "$PEERTUBE_RUNNER_FFMPEG_NICE" ] || [ -n "$PEERTUBE_RUNNER_ENGINE" ] || [ -n "$PEERTUBE_RUNNER_WHISPER_MODEL" ]; then
+        echo "Updating dynamic parameters in existing config..."
+        
+        # Set default values for optional variables
+        PEERTUBE_RUNNER_CONCURRENCY=${PEERTUBE_RUNNER_CONCURRENCY:-2}
+        PEERTUBE_RUNNER_FFMPEG_THREADS=${PEERTUBE_RUNNER_FFMPEG_THREADS:-4}
+        PEERTUBE_RUNNER_FFMPEG_NICE=${PEERTUBE_RUNNER_FFMPEG_NICE:-20}
+        PEERTUBE_RUNNER_ENGINE=${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}
+        PEERTUBE_RUNNER_WHISPER_MODEL=${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}
+        
+        echo "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
+        echo "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
+        echo "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
+        echo "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
+        echo "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
+        
+        # Update specific sections in existing config
+        # Update [jobs] section
+        sed -i "/^\[jobs\]/,/^\[/ { /^concurrency/c\concurrency = $PEERTUBE_RUNNER_CONCURRENCY ; }" "$CONFIG_TARGET"
+        
+        # Update [ffmpeg] section
+        sed -i "/^\[ffmpeg\]/,/^\[/ { /^threads/c\threads = $PEERTUBE_RUNNER_FFMPEG_THREADS ; /^nice/c\nice = $PEERTUBE_RUNNER_FFMPEG_NICE ; }" "$CONFIG_TARGET"
+        
+        # Update [transcription] section
+        sed -i "/^\[transcription\]/,/^\[/ { /^engine/c\engine = \"$PEERTUBE_RUNNER_ENGINE\" ; /^model/c\model = \"$PEERTUBE_RUNNER_WHISPER_MODEL\" ; }" "$CONFIG_TARGET"
+        
+        echo "Dynamic parameters updated successfully"
+    fi
 # Check if external config file exists in source location
 elif [ -f "$CONFIG_SOURCE" ]; then
     echo "Found external config file at $CONFIG_SOURCE, copying to $CONFIG_TARGET"
