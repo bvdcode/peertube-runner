@@ -18,6 +18,7 @@
     # Or just mount your config file
     volumes:
       - ./config.toml:/home/runner/config.toml:ro
+    # You can attach a GPU to the container if you have one but if you don't have a GPU, you can remove the deploy section - and the container will run without GPU support
     deploy:
       resources:
         reservations:
