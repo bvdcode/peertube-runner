@@ -2,6 +2,13 @@
 
 set -e
 
+# Logging function
+log_info() {
+    local timestamp=$(date '+%H:%M:%S')
+    local milliseconds=$(date '+%3N')
+    echo "[${timestamp}.${milliseconds}] INFO ($$): $1"
+}
+
 CONFIG_SOURCE="/home/runner/config.toml"
 CONFIG_TARGET="/home/runner/.config/peertube-runner-nodejs/default/config.toml"
 CONFIG_DIR="/home/runner/.config/peertube-runner-nodejs/default"
@@ -11,11 +18,11 @@ mkdir -p "$CONFIG_DIR"
 
 # Check if config already exists in target location
 if [ -f "$CONFIG_TARGET" ]; then
-    echo "Config file already exists at $CONFIG_TARGET, using existing configuration"
+    log_info "Config file already exists at $CONFIG_TARGET, using existing configuration"
     
     # Update dynamic parameters if environment variables are set
     if [ -n "$PEERTUBE_RUNNER_CONCURRENCY" ] || [ -n "$PEERTUBE_RUNNER_FFMPEG_THREADS" ] || [ -n "$PEERTUBE_RUNNER_FFMPEG_NICE" ] || [ -n "$PEERTUBE_RUNNER_ENGINE" ] || [ -n "$PEERTUBE_RUNNER_WHISPER_MODEL" ]; then
-        echo "Updating dynamic parameters in existing config..."
+        log_info "Updating dynamic parameters in existing config..."
         
         # Set default values for optional variables
         PEERTUBE_RUNNER_CONCURRENCY=${PEERTUBE_RUNNER_CONCURRENCY:-2}
@@ -24,11 +31,11 @@ if [ -f "$CONFIG_TARGET" ]; then
         PEERTUBE_RUNNER_ENGINE=${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}
         PEERTUBE_RUNNER_WHISPER_MODEL=${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}
         
-        echo "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
-        echo "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
-        echo "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
-        echo "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
-        echo "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
+        log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
+        log_info "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
+        log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
+        log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
+        log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
         
         # Update specific sections in existing config
         # Update [jobs] section
@@ -40,18 +47,18 @@ if [ -f "$CONFIG_TARGET" ]; then
         # Update [transcription] section
         sed -i "/^\[transcription\]/,/^\[/ { /^engine/c\engine = \"$PEERTUBE_RUNNER_ENGINE\" ; /^model/c\model = \"$PEERTUBE_RUNNER_WHISPER_MODEL\" ; }" "$CONFIG_TARGET"
         
-        echo "Dynamic parameters updated successfully"
+        log_info "Dynamic parameters updated successfully"
     fi
 # Check if external config file exists in source location
 elif [ -f "$CONFIG_SOURCE" ]; then
-    echo "Found external config file at $CONFIG_SOURCE, copying to $CONFIG_TARGET"
+    log_info "Found external config file at $CONFIG_SOURCE, copying to $CONFIG_TARGET"
     cp "$CONFIG_SOURCE" "$CONFIG_TARGET"
 else
-    echo "No config file found, generating from environment variables"
+    log_info "No config file found, generating from environment variables"
     
     # Check required environment variables
     if [ -z "$PEERTUBE_RUNNER_URL" ] || [ -z "$PEERTUBE_RUNNER_TOKEN" ]; then
-        echo "ERROR: PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required"
+        log_info "ERROR: PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required"
         exit 1
     fi
     
@@ -63,14 +70,14 @@ else
     PEERTUBE_RUNNER_WHISPER_MODEL=${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}
     PEERTUBE_RUNNER_NAME=${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}
     
-    echo "Generating config file with the following settings:"
-    echo "  URL: $PEERTUBE_RUNNER_URL"
-    echo "  Runner Name: $PEERTUBE_RUNNER_NAME"
-    echo "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
-    echo "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
-    echo "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
-    echo "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
-    echo "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
+    log_info "Generating config file with the following settings:"
+    log_info "  URL: $PEERTUBE_RUNNER_URL"
+    log_info "  Runner Name: $PEERTUBE_RUNNER_NAME"
+    log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
+    log_info "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
+    log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
+    log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
+    log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
     
     # Generate config.toml file without registeredInstances
     cat > "$CONFIG_TARGET" << EOF
@@ -86,7 +93,7 @@ engine = "$PEERTUBE_RUNNER_ENGINE"
 model = "$PEERTUBE_RUNNER_WHISPER_MODEL"
 EOF
 
-    echo "Config file generated successfully"
+    log_info "Config file generated successfully"
     CONFIG_GENERATED="true"
 fi
 
@@ -95,7 +102,7 @@ SERVER_CMD="peertube-runner server"
 
 # Check if job types are specified
 if [ -n "$PEERTUBE_RUNNER_JOB_TYPES" ]; then
-    echo "Configuring specific job types: $PEERTUBE_RUNNER_JOB_TYPES"
+    log_info "Configuring specific job types: $PEERTUBE_RUNNER_JOB_TYPES"
     
     # Split job types by comma and add --enable-job for each
     IFS=',' read -ra JOB_TYPES <<< "$PEERTUBE_RUNNER_JOB_TYPES"
@@ -107,27 +114,24 @@ if [ -n "$PEERTUBE_RUNNER_JOB_TYPES" ]; then
         fi
     done
 else
-    echo "No specific job types configured, enabling all jobs"
+    log_info "No specific job types configured, enabling all jobs"
 fi
 
-echo "Starting PeerTube Runner with command: $SERVER_CMD"
-echo "Config file location: $CONFIG_TARGET"
-echo "Config file contents:"
-cat "$CONFIG_TARGET"
-echo "----------------------------------------"
+log_info "Starting PeerTube Runner with command: $SERVER_CMD"
+log_info "Config file location: $CONFIG_TARGET"
 
 # Function to register runner
 register_runner() {
-    echo "Waiting for server to start before registering..."
+    log_info "Waiting for server to start before registering..."
     sleep 5
     
-    echo "Registering runner with PeerTube instance..."
+    log_info "Registering runner with PeerTube instance..."
     peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$PEERTUBE_RUNNER_NAME"
     
     if [ $? -eq 0 ]; then
-        echo "Runner registered successfully!"
+        log_info "Runner registered successfully!"
     else
-        echo "Failed to register runner. Please check your URL and registration token."
+        log_info "Failed to register runner. Please check your URL and registration token."
         exit 1
     fi
 }
