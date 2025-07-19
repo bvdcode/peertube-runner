@@ -9,12 +9,15 @@ CONFIG_DIR="/home/runner/.config/peertube-runner-nodejs/default"
 # Create config directory if it doesn't exist
 mkdir -p "$CONFIG_DIR"
 
-# Check if config file exists in the source location
-if [ -f "$CONFIG_SOURCE" ]; then
-    echo "Found config file at $CONFIG_SOURCE, copying to $CONFIG_TARGET"
+# Check if config already exists in target location
+if [ -f "$CONFIG_TARGET" ]; then
+    echo "Config file already exists at $CONFIG_TARGET, using existing configuration"
+# Check if external config file exists in source location
+elif [ -f "$CONFIG_SOURCE" ]; then
+    echo "Found external config file at $CONFIG_SOURCE, copying to $CONFIG_TARGET"
     cp "$CONFIG_SOURCE" "$CONFIG_TARGET"
 else
-    echo "No config file found at $CONFIG_SOURCE, generating from environment variables"
+    echo "No config file found, generating from environment variables"
     
     # Check required environment variables
     if [ -z "$PEERTUBE_RUNNER_URL" ] || [ -z "$PEERTUBE_RUNNER_TOKEN" ]; then
@@ -54,6 +57,7 @@ model = "$PEERTUBE_RUNNER_WHISPER_MODEL"
 EOF
 
     echo "Config file generated successfully"
+    CONFIG_GENERATED="true"
 fi
 
 # Build the server command
@@ -98,8 +102,8 @@ register_runner() {
     fi
 }
 
-# Start registration in background if using environment variables
-if [ -z "$1" ] && [ -n "$PEERTUBE_RUNNER_URL" ] && [ -n "$PEERTUBE_RUNNER_TOKEN" ]; then
+# Start registration in background only if config was generated from environment variables
+if [ "$CONFIG_GENERATED" = "true" ]; then
     register_runner &
 fi
 
