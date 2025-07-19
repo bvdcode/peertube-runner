@@ -12,6 +12,10 @@ docker run -d --name peertube-runner-gpu \
   bvdcode/peertube-runner-gpu:latest
 ```
 
+> Please note: `ffmpeg` does not support GPU acceleration in this container. It is used for video transcoding tasks only. GPU acceleration is provided for transcription tasks using Whisper and CTranslate2.
+
+> `whisper-ctranslate2` will download the model automatically on first transcription run, so ensure you have internet access in the container.
+
 ## Overview
 
 This project provides a containerized PeerTube Runner with NVIDIA CUDA support, designed for hardware-accelerated video processing including transcoding and transcription using Whisper and CTranslate2. The container supports all major PeerTube job types and is optimized for efficient processing in a PeerTube environment.
