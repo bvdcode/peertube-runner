@@ -2,9 +2,6 @@ name: Build and push Docker Image
 
 on:
   push:
-    paths:
-      - "."
-      - ".github/workflows/docker-image.yaml"
     branches:
       - main
   workflow_dispatch:
