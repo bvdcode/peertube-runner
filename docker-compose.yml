@@ -6,7 +6,7 @@
     environment:
       # More - https://docs.joinpeertube.org/maintain/tools#configuration
       - PEERTUBE_RUNNER_URL=https://peertube.example.com # Replace with your PeerTube instance URL
-      - PEERTUBE_RUNNER_TOKEN=your_token_here         # Replace with your PeerTube runner token
+      - PEERTUBE_RUNNER_TOKEN=your_registration_token_here # Replace with your PeerTube registration token (ptrrt-...)
       # Optional environment variables for the runner
       - PEERTUBE_RUNNER_CONCURRENCY=2                 # How many concurrent tasks to run
       - PEERTUBE_RUNNER_FFMPEG_THREADS=4              # Number of threads for FFMPEG

@@ -39,7 +39,7 @@ else
     echo "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
     echo "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
     
-    # Generate config.toml file
+    # Generate config.toml file without registeredInstances
     cat > "$CONFIG_TARGET" << EOF
 [jobs]
 concurrency = $PEERTUBE_RUNNER_CONCURRENCY
@@ -51,11 +51,6 @@ nice = $PEERTUBE_RUNNER_FFMPEG_NICE
 [transcription]
 engine = "$PEERTUBE_RUNNER_ENGINE"
 model = "$PEERTUBE_RUNNER_WHISPER_MODEL"
-
-[[registeredInstances]]
-url = "$PEERTUBE_RUNNER_URL"
-runnerToken = "$PEERTUBE_RUNNER_TOKEN"
-runnerName = "$PEERTUBE_RUNNER_NAME"
 EOF
 
     echo "Config file generated successfully"
@@ -86,6 +81,27 @@ echo "Config file location: $CONFIG_TARGET"
 echo "Config file contents:"
 cat "$CONFIG_TARGET"
 echo "----------------------------------------"
+
+# Function to register runner
+register_runner() {
+    echo "Waiting for server to start before registering..."
+    sleep 5
+    
+    echo "Registering runner with PeerTube instance..."
+    peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$PEERTUBE_RUNNER_NAME"
+    
+    if [ $? -eq 0 ]; then
+        echo "Runner registered successfully!"
+    else
+        echo "Failed to register runner. Please check your URL and registration token."
+        exit 1
+    fi
+}
+
+# Start registration in background if using environment variables
+if [ -z "$1" ] && [ -n "$PEERTUBE_RUNNER_URL" ] && [ -n "$PEERTUBE_RUNNER_TOKEN" ]; then
+    register_runner &
+fi
 
 # Start the server
 exec $SERVER_CMD
