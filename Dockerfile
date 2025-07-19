@@ -3,18 +3,17 @@ FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip ffmpeg curl ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+    python3 python3-pip ffmpeg curl ca-certificates
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y nodejs
 
 RUN pip3 install --no-cache-dir \
         ctranslate2==4.6.0 \
         whisper-ctranslate2==0.5.3
 
 RUN npm install -g @peertube/peertube-runner
+RUN rm -rf /var/lib/apt/lists/*
 
 RUN useradd -ms /bin/bash runner
 USER runner
