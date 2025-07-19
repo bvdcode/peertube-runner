@@ -15,11 +15,14 @@ RUN pip3 install --no-cache-dir \
 RUN npm install -g @peertube/peertube-runner
 RUN rm -rf /var/lib/apt/lists/*
 
+# Copy and set permissions as root before switching user
+COPY start.sh /home/runner/start.sh
+RUN chmod +x /home/runner/start.sh
+
+# Create user and switch
 RUN useradd -ms /bin/bash runner
+RUN chown -R runner:runner /home/runner
 USER runner
 WORKDIR /home/runner
 
-COPY start.sh .
-RUN chmod +x start.sh
-
-ENTRYPOINT ["start.sh"]
+ENTRYPOINT ["./start.sh"]
