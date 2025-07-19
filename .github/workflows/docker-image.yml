@@ -37,7 +37,9 @@ jobs:
         with:
           context: ${{ env.CONTEXT_DIR }}
           push: true
-          tags: ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: |
+            ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:latest
           file: ${{ env.DOCKERFILE }}
 
       - name: login to GitHub Container Registry
@@ -52,5 +54,7 @@ jobs:
         with:
           context: ${{ env.CONTEXT_DIR }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest
           file: ${{ env.DOCKERFILE }}
