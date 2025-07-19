@@ -1,0 +1,25 @@
+# This is a sample Docker Compose file for a web applicationservices:
+  peertube-runner-gpu:
+    image: bvdcode/peertube-runner-gpu:latest
+    container_name: peertube-runner-gpu
+    restart: unless-stopped
+    environment:
+      # More - https://docs.joinpeertube.org/maintain/tools#configuration
+      - PEERTUBE_RUNNER_URL=https://peertube.example.com # Replace with your PeerTube instance URL
+      - PEERTUBE_RUNNER_TOKEN=your_token_here         # Replace with your PeerTube runner token
+      # Optional environment variables for the runner
+      - PEERTUBE_RUNNER_CONCURRENCY=2                 # How many concurrent tasks to run
+      - PEERTUBE_RUNNER_FFMPEG_THREADS=4              # Number of threads for FFMPEG
+      - PEERTUBE_RUNNER_FFMPEG_NICE=20                # Nice value for FFMPEG process
+      - PEERTUBE_RUNNER_ENGINE=whisper-ctranslate2    # Engine to use for transcription - can be 'whisper-ctranslate2' or 'whisper-ffmpeg' (not tested)
+      - PEERTUBE_RUNNER_WHISPER_MODEL=large-v3        # Whisper model to use - can be "tiny", "base", "small", "medium", "large-v2" or "large-v3"
+      - PEERTUBE_RUNNER_NAME=peertube-runner-gpu      # Name of the runner
+      - PEERTUBE_RUNNER_JOB_TYPES=vod-web-video-transcoding,vod-hls-transcoding,vod-audio-merge-transcoding,live-rtmp-hls-transcoding,video-studio-transcoding,video-transcription # Or empty to enable all jobs
+    # Or just mount your config file
+    volumes:
+      - ./config.toml:/home/runner/config.toml:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]

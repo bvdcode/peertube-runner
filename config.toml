@@ -1,0 +1,15 @@
+[jobs]
+concurrency = 1
+
+[ffmpeg]
+threads = 2
+nice = 20
+
+[transcription]
+engine = "whisper-ctranslate2"
+model = "large-v3"
+
+[[registeredInstances]]
+url = "https://peertube.example.com"
+runnerToken = "ptrt-abcdef12-abcd-ef12-3456-abcdef123456"
+runnerName = "lenovo-prod"
