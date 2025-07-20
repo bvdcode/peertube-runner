@@ -16,6 +16,10 @@ docker run -d --name peertube-runner-gpu \
 
 > `whisper-ctranslate2` will download the model automatically on first transcription run, so ensure you have internet access in the container.
 
+> Be aware that runner tokens in configuration files are not the same as in Web UI. After registration, `peertube-runner` will use provided token to connect to PeerTube instance and retrieves a new token for further operations which will be saved in configuration. This behavior is implemented by PeerTube developers so that's it.
+
+> If you want to save whisper model files, you can mount a volume to `/home/runner/.cache/` directory. This way, models will be cached and reused across container restarts.
+
 ## Overview
 
 This project provides a containerized PeerTube Runner with NVIDIA CUDA support, designed for hardware-accelerated video processing including transcoding and transcription using Whisper and CTranslate2. The container supports all major PeerTube job types and is optimized for efficient processing in a PeerTube environment.
