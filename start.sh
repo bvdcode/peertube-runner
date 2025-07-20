@@ -37,16 +37,12 @@ if [ -f "$CONFIG_TARGET" ]; then
         log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
         log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
         
-        # Update specific sections in existing config
-        # Update [jobs] section
-        sed -i "/^\[jobs\]/,/^\[/ { /^concurrency/c\concurrency = $PEERTUBE_RUNNER_CONCURRENCY ; }" "$CONFIG_TARGET"
-        
-        # Update [ffmpeg] section
-        sed -i "/^\[ffmpeg\]/,/^\[/ { /^threads/c\threads = $PEERTUBE_RUNNER_FFMPEG_THREADS ; /^nice/c\nice = $PEERTUBE_RUNNER_FFMPEG_NICE ; }" "$CONFIG_TARGET"
-        
-        # Update [transcription] section
-        sed -i "/^\[transcription\]/,/^\[/ { /^engine/c\engine = \"$PEERTUBE_RUNNER_ENGINE\" ; /^model/c\model = \"$PEERTUBE_RUNNER_WHISPER_MODEL\" ; }" "$CONFIG_TARGET"
-        
+        # Update config values in-place (compatible with GNU and BusyBox sed)
+        sed -i "s/^concurrency *=.*/concurrency = $PEERTUBE_RUNNER_CONCURRENCY/" "$CONFIG_TARGET"
+        sed -i "s/^threads *=.*/threads = $PEERTUBE_RUNNER_FFMPEG_THREADS/" "$CONFIG_TARGET"
+        sed -i "s/^nice *=.*/nice = $PEERTUBE_RUNNER_FFMPEG_NICE/" "$CONFIG_TARGET"
+        sed -i "s/^engine *=.*/engine = \"$PEERTUBE_RUNNER_ENGINE\"/" "$CONFIG_TARGET"
+        sed -i "s/^model *=.*/model = \"$PEERTUBE_RUNNER_WHISPER_MODEL\"/" "$CONFIG_TARGET"
         log_info "Dynamic parameters updated successfully"
     fi
 # Check if external config file exists in source location
