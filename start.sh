@@ -130,15 +130,35 @@ register_runner() {
     log_info "Waiting for server to start before registering..."
     sleep 5
     
-    log_info "Registering runner with PeerTube instance..."
-    peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$PEERTUBE_RUNNER_NAME"
+    local runner_name="$PEERTUBE_RUNNER_NAME"
+    local max_attempts=3
+    local attempt=1
     
-    if [ $? -eq 0 ]; then
-        log_info "Runner registered successfully!"
-    else
-        log_info "Failed to register runner. Please check your URL and registration token."
-        exit 1
-    fi
+    while [ $attempt -le $max_attempts ]; do
+        log_info "Registering runner with name '$runner_name' (attempt $attempt/$max_attempts)..."
+        REG_OUTPUT=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
+        REG_STATUS=$?
+        
+        if [ $REG_STATUS -eq 0 ]; then
+            log_info "Runner registered successfully with name '$runner_name'!"
+            return 0
+        else
+            if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance'; then
+                log_info "Runner name '$runner_name' already exists on this instance"
+                # Generate unique name with timestamp
+                local timestamp=$(date +%s)
+                runner_name="${PEERTUBE_RUNNER_NAME}-${timestamp}"
+                log_info "Trying with unique name: '$runner_name'"
+                attempt=$((attempt + 1))
+            else
+                log_info "Failed to register runner. Output: $REG_OUTPUT"
+                exit 1
+            fi
+        fi
+    done
+    
+    log_info "Failed to register runner after $max_attempts attempts. Please manually remove existing runners or choose a different name."
+    exit 1
 }
 
 # Start registration in background if needed
