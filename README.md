@@ -129,6 +129,7 @@ docker run -d \
 | `PEERTUBE_RUNNER_URL`            | _Required_            | Your PeerTube instance URL |
 | `PEERTUBE_RUNNER_TOKEN`          | _Required_            | Runner registration token  |
 | `PEERTUBE_RUNNER_NAME`           | `peertube-runner-gpu` | Custom name for the runner |
+| `PEERTUBE_RUNNER_NAME_CONFLICT`  | `exit`                | Action on name conflict: `exit`, `auto`, `wait` |
 | `PEERTUBE_RUNNER_CONCURRENCY`    | `2`                   | Number of concurrent jobs  |
 | `PEERTUBE_RUNNER_FFMPEG_THREADS` | `4`                   | FFmpeg thread count        |
 | `PEERTUBE_RUNNER_FFMPEG_NICE`    | `20`                  | FFmpeg process priority    |
@@ -181,6 +182,39 @@ PEERTUBE_RUNNER_JOB_TYPES=vod-hls-transcoding,video-transcription,video-studio-t
 # All jobs (default if not specified)
 # Leave empty or omit the variable
 ```
+
+### Name Conflict Resolution
+
+Control how the runner behaves when a runner with the same name already exists on the PeerTube instance:
+
+#### `PEERTUBE_RUNNER_NAME_CONFLICT=exit` (default)
+Exits with an error message and instructions when a name conflict occurs:
+
+```bash
+PEERTUBE_RUNNER_NAME_CONFLICT=exit
+```
+
+**Use case**: Strict environments where you want to manually manage runner names.
+
+#### `PEERTUBE_RUNNER_NAME_CONFLICT=auto`
+Automatically generates unique names by appending a timestamp:
+
+```bash
+PEERTUBE_RUNNER_NAME_CONFLICT=auto
+```
+
+**Example**: `peertube-runner-gpu` → `peertube-runner-gpu-1753501234`
+
+**Use case**: Development or testing environments where you want hassle-free deployment.
+
+#### `PEERTUBE_RUNNER_NAME_CONFLICT=wait`
+Waits for the existing runner to be removed, checking every 30 seconds:
+
+```bash
+PEERTUBE_RUNNER_NAME_CONFLICT=wait
+```
+
+**Use case**: When replacing an existing runner and you want to wait for manual cleanup.
 
 ## Docker Images
 
@@ -298,6 +332,43 @@ services:
       - PEERTUBE_RUNNER_ENGINE=whisper-ffmpeg # CPU-based transcription
       - PEERTUBE_RUNNER_WHISPER_MODEL=base # Smaller model for CPU
     # No GPU deployment section
+```
+
+### Development/Testing Setup with Auto-naming
+
+```yaml
+services:
+  peertube-runner-dev:
+    image: bvdcode/peertube-runner-gpu:latest
+    environment:
+      - PEERTUBE_RUNNER_URL=https://your-instance.com
+      - PEERTUBE_RUNNER_TOKEN=your_token
+      - PEERTUBE_RUNNER_NAME=dev-runner
+      - PEERTUBE_RUNNER_NAME_CONFLICT=auto # Auto-generate unique names
+      - PEERTUBE_RUNNER_CONCURRENCY=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+```
+
+### Production Setup with Strict Naming
+
+```yaml
+services:
+  peertube-runner-prod:
+    image: bvdcode/peertube-runner-gpu:latest
+    environment:
+      - PEERTUBE_RUNNER_URL=https://your-instance.com
+      - PEERTUBE_RUNNER_TOKEN=your_token
+      - PEERTUBE_RUNNER_NAME=prod-server-01
+      - PEERTUBE_RUNNER_NAME_CONFLICT=exit # Fail on conflicts (default)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 ```
 
 ## Monitoring & Management
@@ -459,6 +530,13 @@ docker run --rm --gpus all \
 ### Q: Can I run multiple runners on one machine?
 
 **A**: Yes, use different container names and runner names for each instance.
+
+### Q: What happens if a runner name already exists?
+
+**A**: By default, the container will exit with an error. You can control this behavior with `PEERTUBE_RUNNER_NAME_CONFLICT`:
+- `exit` (default): Exit with error and instructions
+- `auto`: Automatically generate unique names with timestamp
+- `wait`: Wait for existing runner to be removed
 
 ### Q: How do I update to the latest version?
 
