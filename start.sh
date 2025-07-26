@@ -116,6 +116,15 @@ fi
 log_info "Starting PeerTube Runner with command: $SERVER_CMD"
 log_info "Config file location: $CONFIG_TARGET"
 
+# Check if runner is registered by looking for registeredInstances section
+NEEDS_REGISTRATION=false
+if ! grep -q "^\[\[registeredInstances\]\]" "$CONFIG_TARGET"; then
+    log_info "No registered instances found in config, registration needed"
+    NEEDS_REGISTRATION=true
+else
+    log_info "Found registered instances in config"
+fi
+
 # Function to register runner
 register_runner() {
     log_info "Waiting for server to start before registering..."
@@ -132,9 +141,13 @@ register_runner() {
     fi
 }
 
-# Start registration in background only if config was generated from environment variables
-if [ "$CONFIG_GENERATED" = "true" ]; then
-    register_runner &
+# Start registration in background if needed
+if [ "$CONFIG_GENERATED" = "true" ] || [ "$NEEDS_REGISTRATION" = "true" ]; then
+    if [ -n "$PEERTUBE_RUNNER_URL" ] && [ -n "$PEERTUBE_RUNNER_TOKEN" ]; then
+        register_runner &
+    else
+        log_info "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN not provided"
+    fi
 fi
 
 # Start the server
