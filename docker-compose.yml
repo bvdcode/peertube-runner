@@ -14,6 +14,7 @@
       - PEERTUBE_RUNNER_ENGINE=whisper-ctranslate2    # Engine to use for transcription - can be 'whisper-ctranslate2' or 'whisper-ffmpeg' (not tested)
       - PEERTUBE_RUNNER_WHISPER_MODEL=large-v3        # Whisper model to use - can be "tiny", "base", "small", "medium", "large-v2" or "large-v3"
       - PEERTUBE_RUNNER_NAME=peertube-runner-gpu      # Name of the runner
+      - PEERTUBE_RUNNER_NAME_CONFLICT=exit            # Action on name conflict: 'exit' (default), 'auto' (generate unique), 'wait' (wait for removal)
       - PEERTUBE_RUNNER_JOB_TYPES=vod-web-video-transcoding,vod-hls-transcoding,vod-audio-merge-transcoding,live-rtmp-hls-transcoding,video-studio-transcoding,video-transcription # Or empty to enable all jobs
     # Or just mount your config file
     volumes:

@@ -131,11 +131,12 @@ register_runner() {
     sleep 5
     
     local runner_name="$PEERTUBE_RUNNER_NAME"
-    local max_attempts=3
-    local attempt=1
+    local name_conflict_action="${PEERTUBE_RUNNER_NAME_CONFLICT:-exit}"
     
-    while [ $attempt -le $max_attempts ]; do
-        log_info "Registering runner with name '$runner_name' (attempt $attempt/$max_attempts)..."
+    log_info "Name conflict resolution mode: $name_conflict_action"
+    
+    while true; do
+        log_info "Registering runner with name '$runner_name'..."
         REG_OUTPUT=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
         REG_STATUS=$?
         
@@ -145,20 +146,34 @@ register_runner() {
         else
             if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance'; then
                 log_info "Runner name '$runner_name' already exists on this instance"
-                # Generate unique name with timestamp
-                local timestamp=$(date +%s)
-                runner_name="${PEERTUBE_RUNNER_NAME}-${timestamp}"
-                log_info "Trying with unique name: '$runner_name'"
-                attempt=$((attempt + 1))
+                
+                case "$name_conflict_action" in
+                    "auto")
+                        # Generate unique name with timestamp
+                        local timestamp=$(date +%s)
+                        runner_name="${PEERTUBE_RUNNER_NAME}-${timestamp}"
+                        log_info "Auto-generating unique name: '$runner_name'"
+                        ;;
+                    "wait")
+                        log_info "Waiting for existing runner to be removed. Will retry in 30 seconds..."
+                        log_info "Please remove the existing runner '$runner_name' from your PeerTube instance or set PEERTUBE_RUNNER_NAME_CONFLICT=auto"
+                        sleep 30
+                        ;;
+                    "exit"|*)
+                        log_info "Runner name conflict detected. Please either:"
+                        log_info "  1. Remove the existing runner '$runner_name' from your PeerTube instance"
+                        log_info "  2. Set PEERTUBE_RUNNER_NAME_CONFLICT=auto to auto-generate unique names"
+                        log_info "  3. Set PEERTUBE_RUNNER_NAME_CONFLICT=wait to wait for manual removal"
+                        log_info "  4. Change PEERTUBE_RUNNER_NAME to a different value"
+                        exit 1
+                        ;;
+                esac
             else
                 log_info "Failed to register runner. Output: $REG_OUTPUT"
                 exit 1
             fi
         fi
     done
-    
-    log_info "Failed to register runner after $max_attempts attempts. Please manually remove existing runners or choose a different name."
-    exit 1
 }
 
 # Start registration in background if needed
