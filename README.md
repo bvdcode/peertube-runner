@@ -556,12 +556,6 @@ docker run --rm --gpus all \
 - **PeerTube Documentation**: [Official Docs](https://docs.joinpeertube.org/maintain/tools#configuration)
 - **Docker Hub**: [bvdcode/peertube-runner-gpu](https://hub.docker.com/r/bvdcode/peertube-runner-gpu)
 
-## Version History
-
-- **v1.0.0**: Initial release with basic transcription support
-- **v2.0.0**: Added full transcoding support and environment variable configuration
-- **v2.1.0**: Updated to CUDA 12.8.0 and improved job type selection
-
 ## License
 
 This project is open source. Please check the license file for details.
