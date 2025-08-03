@@ -1,6 +1,10 @@
 # PeerTube Runner with CUDA Support
 
-A Docker container for running PeerTube Runner with GPU acceleration for video transcoding and transcription tasks.
+![Docker Pulls](https://img.shields.io/docker/pulls/bvdcode/peertube-runner-gpu)
+![Docker Tag](https://img.shields.io/docker/v/bvdcode/peertube-runner-gpu)
+![.NET](https://img.shields.io/badge/.NET-9.0-blue)
+
+**A Docker container for running PeerTube Runner with GPU acceleration for video transcoding and transcription tasks.**
 
 ## TL;DR
 
@@ -124,18 +128,18 @@ docker run -d \
 
 ### Environment Variables
 
-| Variable                         | Default               | Description                |
-| -------------------------------- | --------------------- | -------------------------- |
-| `PEERTUBE_RUNNER_URL`            | _Required_            | Your PeerTube instance URL |
-| `PEERTUBE_RUNNER_TOKEN`          | _Required_            | Runner registration token  |
-| `PEERTUBE_RUNNER_NAME`           | `peertube-runner-gpu` | Custom name for the runner |
+| Variable                         | Default               | Description                                     |
+| -------------------------------- | --------------------- | ----------------------------------------------- |
+| `PEERTUBE_RUNNER_URL`            | _Required_            | Your PeerTube instance URL                      |
+| `PEERTUBE_RUNNER_TOKEN`          | _Required_            | Runner registration token                       |
+| `PEERTUBE_RUNNER_NAME`           | `peertube-runner-gpu` | Custom name for the runner                      |
 | `PEERTUBE_RUNNER_NAME_CONFLICT`  | `exit`                | Action on name conflict: `exit`, `auto`, `wait` |
-| `PEERTUBE_RUNNER_CONCURRENCY`    | `2`                   | Number of concurrent jobs  |
-| `PEERTUBE_RUNNER_FFMPEG_THREADS` | `4`                   | FFmpeg thread count        |
-| `PEERTUBE_RUNNER_FFMPEG_NICE`    | `20`                  | FFmpeg process priority    |
-| `PEERTUBE_RUNNER_ENGINE`         | `whisper-ctranslate2` | Transcription engine       |
-| `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model size         |
-| `PEERTUBE_RUNNER_JOB_TYPES`      | _All jobs_            | Comma-separated job types  |
+| `PEERTUBE_RUNNER_CONCURRENCY`    | `2`                   | Number of concurrent jobs                       |
+| `PEERTUBE_RUNNER_FFMPEG_THREADS` | `4`                   | FFmpeg thread count                             |
+| `PEERTUBE_RUNNER_FFMPEG_NICE`    | `20`                  | FFmpeg process priority                         |
+| `PEERTUBE_RUNNER_ENGINE`         | `whisper-ctranslate2` | Transcription engine                            |
+| `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model size                              |
+| `PEERTUBE_RUNNER_JOB_TYPES`      | _All jobs_            | Comma-separated job types                       |
 
 ### Configuration File Format
 
@@ -188,6 +192,7 @@ PEERTUBE_RUNNER_JOB_TYPES=vod-hls-transcoding,video-transcription,video-studio-t
 Control how the runner behaves when a runner with the same name already exists on the PeerTube instance:
 
 #### `PEERTUBE_RUNNER_NAME_CONFLICT=exit` (default)
+
 Exits with an error message and instructions when a name conflict occurs:
 
 ```bash
@@ -197,6 +202,7 @@ PEERTUBE_RUNNER_NAME_CONFLICT=exit
 **Use case**: Strict environments where you want to manually manage runner names.
 
 #### `PEERTUBE_RUNNER_NAME_CONFLICT=auto`
+
 Automatically generates unique names by appending a timestamp:
 
 ```bash
@@ -208,6 +214,7 @@ PEERTUBE_RUNNER_NAME_CONFLICT=auto
 **Use case**: Development or testing environments where you want hassle-free deployment.
 
 #### `PEERTUBE_RUNNER_NAME_CONFLICT=wait`
+
 Waits for the existing runner to be removed, checking every 30 seconds:
 
 ```bash
@@ -534,6 +541,7 @@ docker run --rm --gpus all \
 ### Q: What happens if a runner name already exists?
 
 **A**: By default, the container will exit with an error. You can control this behavior with `PEERTUBE_RUNNER_NAME_CONFLICT`:
+
 - `exit` (default): Exit with error and instructions
 - `auto`: Automatically generate unique names with timestamp
 - `wait`: Wait for existing runner to be removed
