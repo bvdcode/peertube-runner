@@ -2,7 +2,6 @@
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/bvdcode/peertube-runner-gpu)
 ![Docker Tag](https://img.shields.io/docker/v/bvdcode/peertube-runner-gpu)
-![.NET](https://img.shields.io/badge/.NET-9.0-blue)
 
 **A Docker container for running PeerTube Runner with GPU acceleration for video transcoding and transcription tasks.**
 
