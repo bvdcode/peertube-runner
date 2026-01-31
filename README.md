@@ -12,6 +12,7 @@ docker run -d --name peertube-runner-gpu \
   --gpus all --restart unless-stopped \
   -e PEERTUBE_RUNNER_URL=https://your-peertube-instance.com \
   -e PEERTUBE_RUNNER_TOKEN=your_token_here \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility \
   bvdcode/peertube-runner-gpu:latest
 ```
 
