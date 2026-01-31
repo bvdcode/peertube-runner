@@ -134,13 +134,12 @@ register_runner() {
     
     while true; do
         log_info "Registering runner with name '$runner_name'..."
-        # Capture output reliably (some Node loggers can leak output even with command substitution).
-        local reg_tmp
-        reg_tmp="$(mktemp)"
-        peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" >"$reg_tmp" 2>&1
+        
+        # Capture output and status (set +e to prevent exit on registration failure)
+        set +e
+        REG_OUTPUT=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
         REG_STATUS=$?
-        REG_OUTPUT="$(cat "$reg_tmp")"
-        rm -f "$reg_tmp"
+        set -e
 
         # Treat registration as successful only if the config now contains a runner token.
         if grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" && grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET"; then
