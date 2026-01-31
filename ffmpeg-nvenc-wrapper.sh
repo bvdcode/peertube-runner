@@ -15,10 +15,20 @@ if [ "${#ORIG_ARGS[@]}" -eq 1 ]; then
 fi
 
 NEW_ARGS=()
-for arg in "${ORIG_ARGS[@]}"; do
+skip_next=false
+for i in "${!ORIG_ARGS[@]}"; do
+    if $skip_next; then
+        skip_next=false
+        continue
+    fi
+    
+    arg="${ORIG_ARGS[$i]}"
     case "$arg" in
         libx264) NEW_ARGS+=("h264_nvenc") ;;
         libx265) NEW_ARGS+=("hevc_nvenc") ;;
+        -preset|-bf|-b_strategy)
+            skip_next=true
+            ;;
         *) NEW_ARGS+=("$arg") ;;
     esac
 done
