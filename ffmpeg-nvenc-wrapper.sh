@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
+LOG_FILE="/tmp/ffmpeg-wrapper.log"
+
 # Logging function
 log_info() {
     local timestamp=$(date '+%H:%M:%S')
     local milliseconds=$(date '+%3N')
     echo "[${timestamp}.${milliseconds}] INFO ($$): $1"
+    echo "[${timestamp}.${milliseconds}] INFO ($$): $1" >> "$LOG_FILE"
 }
 
 # Path to the real ffmpeg binary
@@ -56,6 +59,7 @@ fi
 
 if [ "$use_nvenc" = true ]; then
     log_info "Attempting NVENC encode, rewriting libx264 -> h264_nvenc"
+    log_info "Original ffmpeg args: ${ORIG_ARGS[*]}"
     NEW_ARGS=()
     
     # Rewrite x264/x265 encoders to NVENC equivalents
@@ -73,6 +77,7 @@ if [ "$use_nvenc" = true ]; then
         esac
     done
     
+    log_info "Rewritten ffmpeg args for NVENC: ${NEW_ARGS[*]}"
     # Attempt NVENC run; if it fails, fall back to CPU for this job
     if "$REAL_FFMPEG" -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}"; then
         log_info "NVENC encode completed successfully"
