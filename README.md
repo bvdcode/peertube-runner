@@ -18,17 +18,11 @@ docker run -d --name peertube-runner-gpu \
 
 **Key Features:**
 
-- ✅ **Smart NVENC Auto-Detection**: Automatically detects GPU availability and falls back to CPU if needed
+- ✅ **Smart NVENC Encoding**: Automatically uses GPU encoding when available, falls back to CPU if needed
 - ✅ **Reliable Registration**: Fixed registration logic that accurately reports success/failure
 - ✅ **GPU Transcription**: Whisper models run on GPU via CTranslate2
 - ✅ **Model Auto-Download**: Whisper models download automatically on first use
 - ✅ **Persistent Cache**: Mount `/home/runner/.cache/` to preserve downloaded models across restarts
-
-**Important Notes:**
-
-- The wrapper automatically tests NVENC on first run and caches the result (`/tmp/nvenc_ok` or `/tmp/nvenc_disabled`)
-- Runner registration tokens differ from web UI tokens—this is PeerTube's design
-- Registration only reports success when `runnerToken` is actually written to config
 
 ## Overview
 
@@ -258,14 +252,12 @@ When the container starts, it will:
 2. **PeerTube Connection**: Connect to your PeerTube instance using provided URL and token
 3. **Runner Registration**: Register as a runner with specified capabilities
 4. **Job Processing**: Accept and process jobs based on configured job types:
-   - Video transcoding jobs use FFmpeg with specified thread/nice settings
+   - Video transcoding jobs use FFmpeg with GPU encoding when available
    - Transcription jobs use Whisper with GPU acceleration
-   - All jobs respect concurrency limits 5.**Smart NVENC Handling**: Auto-detects GPU capabilities on first ffmpeg run, caches result per container
-
-- **Automatic Fallback**: Gracefully falls back to CPU encoding if NVENC unavailable
-- **Reliable Registration**: Only reports success when runner token is actually saved to config
-- **Non-root Execution**: Runs as `runner` user for security
-  **Transcription Only (GPU):**
+   - All jobs respect concurrency limits
+5. **Smart Encoding**: Automatically uses NVENC GPU encoding, falls back to CPU if GPU unavailable
+6. **Non-root Execution**: Runs as `runner` user for security
+   **Transcription Only (GPU):**
 
 ```yaml
 environment:
@@ -399,10 +391,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu22.04 nvidia-smi
 
 **"NVENC not available" in logs:**
 
-- Normal behavior—container automatically falls back to CPU encoding
-- Container works fine without GPU, just slower for transcoding
-
-**Registration Failed:**
+- Container works fine without GPU, just uses CPU en
 
 - Check URL is accessible: `curl -I https://your-instance.com`
 - Verify token format: `ptrrt-...` (registration token, not runner token)
