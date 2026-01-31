@@ -118,7 +118,7 @@ log_info "Config file location: $CONFIG_TARGET"
 
 # Check if runner is registered by looking for registeredInstances section
 NEEDS_REGISTRATION=false
-if ! grep -q "^\[\[registeredInstances\]\]" "$CONFIG_TARGET"; then
+if ! grep -q "^\[\[registeredInstances\]\]" "$CONFIG_TARGET" 2>/dev/null; then
     log_info "No registered instances found in config, registration needed"
     NEEDS_REGISTRATION=true
 else
@@ -140,13 +140,14 @@ register_runner() {
         REG_OUTPUT=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
         REG_STATUS=$?
         set -e
-
+        
         # Treat registration as successful only if the config now contains a runner token.
-        if grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" && grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET"; then
+        # Use || true to prevent grep failures from exiting the script
+        if grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" 2>/dev/null && grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET" 2>/dev/null; then
             log_info "Runner registered successfully with name '$runner_name'!"
             return 0
         fi
-
+ 2>/dev/null
         if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance'; then
             log_info "Runner name '$runner_name' already exists on this instance"
 
