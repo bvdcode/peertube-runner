@@ -30,13 +30,15 @@ ORIG_ARGS=("$@")
 use_nvenc=false
 
 if [ -f "$NVENC_DISABLED_FLAG" ]; then
+    log_info "NVENC disabled flag present, using CPU ffmpeg"
     exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
 fi
 
 if [ -f "$NVENC_OK_FLAG" ]; then
+    log_info "NVENC_OK flag found, using NVENC path"
     use_nvenc=true
 else
-    # One-time NVENC probe (tiny encode test)
+    log_info "Probing NVENC support..."
     if "$REAL_FFMPEG" -loglevel error \
     -f lavfi -i "testsrc=size=1280x720:rate=30" \
     -t 0.1 \
@@ -53,6 +55,7 @@ else
 fi
 
 if [ "$use_nvenc" = true ]; then
+    log_info "Attempting NVENC encode, rewriting libx264 -> h264_nvenc"
     NEW_ARGS=()
     
     # Rewrite x264/x265 encoders to NVENC equivalents
@@ -72,6 +75,7 @@ if [ "$use_nvenc" = true ]; then
     
     # Attempt NVENC run; if it fails, fall back to CPU for this job
     if "$REAL_FFMPEG" -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}"; then
+        log_info "NVENC encode completed successfully"
         exit 0
     else
         log_info "NVENC encode failed, falling back to CPU ffmpeg"
