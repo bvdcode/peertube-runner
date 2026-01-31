@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 # Logging function
@@ -9,38 +8,74 @@ log_info() {
     echo "[${timestamp}.${milliseconds}] INFO ($$): $1"
 }
 
-
-#!/usr/bin/env bash
-set -e
-
-# Where is the real ffmpeg located
+# Path to the real ffmpeg binary
 REAL_FFMPEG="${FFMPEG_REAL_PATH:-/usr/local/bin/ffmpeg-real}"
 
-# If the specified path is not executable, try to find ffmpeg-real in PATH
 if [ ! -x "$REAL_FFMPEG" ]; then
     REAL_FFMPEG="$(command -v ffmpeg-real || true)"
-    if [ -z "$REAL_FFMPEG" ]; then
-        echo "ffmpeg-real not found" >&2
-        exit 1
+fi
+
+if [ -z "$REAL_FFMPEG" ]; then
+    log_info "ERROR: ffmpeg-real not found"
+    exit 1
+fi
+
+# NVENC state cache flags (per container lifetime)
+NVENC_OK_FLAG="/tmp/nvenc_ok"
+NVENC_DISABLED_FLAG="/tmp/nvenc_disabled"
+
+# Preserve original args for CPU fallback
+ORIG_ARGS=("$@")
+
+use_nvenc=false
+
+if [ -f "$NVENC_DISABLED_FLAG" ]; then
+    exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
+fi
+
+if [ -f "$NVENC_OK_FLAG" ]; then
+    use_nvenc=true
+else
+    # One-time NVENC probe (tiny encode test)
+    if "$REAL_FFMPEG" -loglevel error \
+    -f lavfi -i "testsrc=size=128x72:rate=1" \
+    -t 0.1 \
+    -c:v h264_nvenc \
+    -f null - >/dev/null 2>&1; then
+        touch "$NVENC_OK_FLAG"
+        use_nvenc=true
+    else
+        log_info "NVENC not available, falling back to CPU ffmpeg"
+        touch "$NVENC_DISABLED_FLAG"
+        exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
     fi
 fi
 
-NEW_ARGS=()
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        libx264)
-            # Change libx264 to h264_nvenc for NVIDIA hardware acceleration
-            NEW_ARGS+=("h264_nvenc")
-        ;;
-        libx265)
-            NEW_ARGS+=("hevc_nvenc")
-        ;;
-        *)
-            NEW_ARGS+=("$1")
-        ;;
-    esac
-    shift
-done
+if [ "$use_nvenc" = true ]; then
+    NEW_ARGS=()
+    
+    # Rewrite x264/x265 encoders to NVENC equivalents
+    for arg in "${ORIG_ARGS[@]}"; do
+        case "$arg" in
+            libx264)
+                NEW_ARGS+=("h264_nvenc")
+            ;;
+            libx265)
+                NEW_ARGS+=("hevc_nvenc")
+            ;;
+            *)
+                NEW_ARGS+=("$arg")
+            ;;
+        esac
+    done
+    
+    # Attempt NVENC run; if it fails, fall back to CPU for this job
+    if "$REAL_FFMPEG" -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}"; then
+        exit 0
+    else
+        log_info "NVENC encode failed, falling back to CPU ffmpeg"
+        exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
+    fi
+fi
 
-# Add hardware acceleration flags
-exec "$REAL_FFMPEG" -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}"
+exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
