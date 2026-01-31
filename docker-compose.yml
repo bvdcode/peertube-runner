@@ -16,8 +16,8 @@
       - PEERTUBE_RUNNER_NAME=peertube-runner-gpu      # Name of the runner
       - PEERTUBE_RUNNER_NAME_CONFLICT=exit            # Action on name conflict: 'exit' (default), 'auto' (generate unique), 'wait' (wait for removal)
       - PEERTUBE_RUNNER_JOB_TYPES=vod-web-video-transcoding,vod-hls-transcoding,vod-audio-merge-transcoding,live-rtmp-hls-transcoding,video-studio-transcoding,video-transcription # Or empty to enable all jobs
-    # Or just mount your config file
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility # Required for GPU support in ffmpeg
+    # Or just mount your config file instead of using environment variables
     volumes:
       - ./config.toml:/home/runner/config.toml:ro
     # You can attach a GPU to the container if you have one but if you don't have a GPU, you can remove the deploy section - and the container will run without GPU support
