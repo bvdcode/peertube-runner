@@ -79,11 +79,12 @@ if [ "$use_nvenc" = true ]; then
     
     log_info "Rewritten ffmpeg args for NVENC: ${NEW_ARGS[*]}"
     # Attempt NVENC run; if it fails, fall back to CPU for this job
-    if "$REAL_FFMPEG" -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}"; then
+    if "$REAL_FFMPEG" -y -loglevel error -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}" >> "$LOG_FILE" 2>&1; then
         log_info "NVENC encode completed successfully"
         exit 0
     else
-        log_info "NVENC encode failed, falling back to CPU ffmpeg"
+        rc=$?
+        log_info "NVENC encode failed with code $rc, falling back to CPU ffmpeg"
         exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
     fi
 fi
