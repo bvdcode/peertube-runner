@@ -30,6 +30,14 @@ NVENC_DISABLED_FLAG="/tmp/nvenc_disabled"
 # Preserve original args for CPU fallback
 ORIG_ARGS=("$@")
 
+if [ "${#ORIG_ARGS[@]}" -eq 1 ]; then
+    case "${ORIG_ARGS[0]}" in
+        -encoders|-decoders|-formats|-version|-buildconf|-codecs|-protocols|-filters|-pix_fmts)
+            exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
+        ;;
+    esac
+fi
+
 use_nvenc=false
 
 if [ -f "$NVENC_DISABLED_FLAG" ]; then
@@ -38,8 +46,24 @@ if [ -f "$NVENC_DISABLED_FLAG" ]; then
 fi
 
 if [ -f "$NVENC_OK_FLAG" ]; then
-    log_info "NVENC_OK flag found, using NVENC path"
-    use_nvenc=true
+    has_libx264=false
+    for ((i=0; i<${#ORIG_ARGS[@]}-1; i++)); do
+        case "${ORIG_ARGS[$i]}" in
+            -c:v|-codec:v|-vcodec)
+                if [ "${ORIG_ARGS[$((i+1))]}" = "libx264" ] || [ "${ORIG_ARGS[$((i+1))]}" = "libx265" ]; then
+                    has_libx264=true
+                    break
+                fi
+            ;;
+        esac
+    done
+    
+    if [ "$has_libx264" = true ]; then
+        log_info "NVENC_OK flag found, libx264/libx265 detected, using NVENC path"
+        use_nvenc=true
+    else
+        exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
+    fi
 else
     log_info "Probing NVENC support..."
     if "$REAL_FFMPEG" -loglevel error \
@@ -61,7 +85,7 @@ if [ "$use_nvenc" = true ]; then
     log_info "Attempting NVENC encode, rewriting libx264 -> h264_nvenc"
     log_info "Original ffmpeg args: ${ORIG_ARGS[*]}"
     NEW_ARGS=()
-    
+    if "$REAL_FFMPEG" -y -loglevel error -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}" 2>>"$LOG_FILE"
     # Rewrite x264/x265 encoders to NVENC equivalents
     for arg in "${ORIG_ARGS[@]}"; do
         case "$arg" in
