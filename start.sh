@@ -64,7 +64,6 @@ else
     PEERTUBE_RUNNER_FFMPEG_NICE=${PEERTUBE_RUNNER_FFMPEG_NICE:-20}
     PEERTUBE_RUNNER_ENGINE=${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}
     PEERTUBE_RUNNER_WHISPER_MODEL=${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}
-    PEERTUBE_RUNNER_NAME=${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}
     
     log_info "Generating config file with the following settings:"
     log_info "  URL: $PEERTUBE_RUNNER_URL"
@@ -92,6 +91,9 @@ EOF
     log_info "Config file generated successfully"
     CONFIG_GENERATED="true"
 fi
+
+# Set default runner name (used for registration)
+PEERTUBE_RUNNER_NAME=${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}
 
 # Build the server command
 SERVER_CMD="peertube-runner server"
