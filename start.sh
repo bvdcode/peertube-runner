@@ -127,9 +127,6 @@ fi
 
 # Function to register runner
 register_runner() {
-    log_info "Waiting for server to start before registering..."
-    sleep 5
-    
     local runner_name="$PEERTUBE_RUNNER_NAME"
     local name_conflict_action="${PEERTUBE_RUNNER_NAME_CONFLICT:-exit}"
     
@@ -137,51 +134,62 @@ register_runner() {
     
     while true; do
         log_info "Registering runner with name '$runner_name'..."
-        REG_OUTPUT=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
+        # Capture output reliably (some Node loggers can leak output even with command substitution).
+        local reg_tmp
+        reg_tmp="$(mktemp)"
+        peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" >"$reg_tmp" 2>&1
         REG_STATUS=$?
-        
-        if [ $REG_STATUS -eq 0 ]; then
+        REG_OUTPUT="$(cat "$reg_tmp")"
+        rm -f "$reg_tmp"
+
+        # Treat registration as successful only if the config now contains a runner token.
+        if grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" && grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET"; then
             log_info "Runner registered successfully with name '$runner_name'!"
             return 0
+        fi
+
+        if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance'; then
+            log_info "Runner name '$runner_name' already exists on this instance"
+
+            case "$name_conflict_action" in
+                "auto")
+                    # Generate unique name with timestamp
+                    local timestamp
+                    timestamp=$(date +%s)
+                    runner_name="${PEERTUBE_RUNNER_NAME}-${timestamp}"
+                    log_info "Auto-generating unique name: '$runner_name'"
+                    ;;
+                "wait")
+                    log_info "Waiting for existing runner to be removed. Will retry in 30 seconds..."
+                    log_info "Please remove the existing runner '$runner_name' from your PeerTube instance or set PEERTUBE_RUNNER_NAME_CONFLICT=auto"
+                    sleep 30
+                    ;;
+                "exit"|*)
+                    log_info "Runner name conflict detected. Please either:"
+                    log_info "  1. Remove the existing runner '$runner_name' from your PeerTube instance"
+                    log_info "  2. Set PEERTUBE_RUNNER_NAME_CONFLICT=auto to auto-generate unique names"
+                    log_info "  3. Set PEERTUBE_RUNNER_NAME_CONFLICT=wait to wait for manual removal"
+                    log_info "  4. Change PEERTUBE_RUNNER_NAME to a different value"
+                    exit 1
+                    ;;
+            esac
         else
-            if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance'; then
-                log_info "Runner name '$runner_name' already exists on this instance"
-                
-                case "$name_conflict_action" in
-                    "auto")
-                        # Generate unique name with timestamp
-                        local timestamp=$(date +%s)
-                        runner_name="${PEERTUBE_RUNNER_NAME}-${timestamp}"
-                        log_info "Auto-generating unique name: '$runner_name'"
-                        ;;
-                    "wait")
-                        log_info "Waiting for existing runner to be removed. Will retry in 30 seconds..."
-                        log_info "Please remove the existing runner '$runner_name' from your PeerTube instance or set PEERTUBE_RUNNER_NAME_CONFLICT=auto"
-                        sleep 30
-                        ;;
-                    "exit"|*)
-                        log_info "Runner name conflict detected. Please either:"
-                        log_info "  1. Remove the existing runner '$runner_name' from your PeerTube instance"
-                        log_info "  2. Set PEERTUBE_RUNNER_NAME_CONFLICT=auto to auto-generate unique names"
-                        log_info "  3. Set PEERTUBE_RUNNER_NAME_CONFLICT=wait to wait for manual removal"
-                        log_info "  4. Change PEERTUBE_RUNNER_NAME to a different value"
-                        exit 1
-                        ;;
-                esac
-            else
-                log_info "Failed to register runner. Output: $REG_OUTPUT"
-                exit 1
+            if [ $REG_STATUS -eq 0 ]; then
+                log_info "Registration command exited successfully, but no runner token was written to config. Treating as failure."
             fi
+            log_info "Failed to register runner. Output: $REG_OUTPUT"
+            exit 1
         fi
     done
 }
 
-# Start registration in background if needed
+# Register before starting the server if needed (avoids races and misleading success logs)
 if [ "$CONFIG_GENERATED" = "true" ] || [ "$NEEDS_REGISTRATION" = "true" ]; then
     if [ -n "$PEERTUBE_RUNNER_URL" ] && [ -n "$PEERTUBE_RUNNER_TOKEN" ]; then
-        register_runner &
+        register_runner
     else
         log_info "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN not provided"
+        exit 1
     fi
 fi
 
