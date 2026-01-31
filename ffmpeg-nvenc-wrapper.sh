@@ -26,7 +26,17 @@ for i in "${!ORIG_ARGS[@]}"; do
     case "$arg" in
         libx264) NEW_ARGS+=("h264_nvenc") ;;
         libx265) NEW_ARGS+=("hevc_nvenc") ;;
-        -preset|-bf|-b_strategy)
+        -preset)
+            NEW_ARGS+=("-preset")
+            NEW_ARGS+=("fast")
+            skip_next=true
+            ;;
+        -bf)
+            NEW_ARGS+=("-bf")
+            NEW_ARGS+=("3")
+            skip_next=true
+            ;;
+        -b_strategy)
             skip_next=true
             ;;
         *) NEW_ARGS+=("$arg") ;;
