@@ -38,8 +38,9 @@ if [ -f "$NVENC_OK_FLAG" ]; then
 else
     # One-time NVENC probe (tiny encode test)
     if "$REAL_FFMPEG" -loglevel error \
-    -f lavfi -i "testsrc=size=128x72:rate=1" \
+    -f lavfi -i "testsrc=size=1280x720:rate=30" \
     -t 0.1 \
+    -pix_fmt yuv420p \
     -c:v h264_nvenc \
     -f null - >/dev/null 2>&1; then
         touch "$NVENC_OK_FLAG"
