@@ -125,12 +125,27 @@ else
     log_info "Found registered instances in config"
 fi
 
-# Function to register runner
+# Function to register runner (must be called after server is started)
 register_runner() {
     local runner_name="$PEERTUBE_RUNNER_NAME"
     local name_conflict_action="${PEERTUBE_RUNNER_NAME_CONFLICT:-exit}"
+    local socket_path="/home/runner/.local/share/peertube-runner-nodejs/default/peertube-runner.sock"
     
     log_info "Name conflict resolution mode: $name_conflict_action"
+    
+    # Wait for server socket to be available
+    log_info "Waiting for PeerTube Runner server socket..."
+    local retries=0
+    while [ ! -S "$socket_path" ] && [ $retries -lt 30 ]; do
+        sleep 1
+        retries=$((retries + 1))
+    done
+    
+    if [ ! -S "$socket_path" ]; then
+        log_info "ERROR: Server socket not available after 30 seconds"
+        return 1
+    fi
+    log_info "Server socket is ready"
     
     while true; do
         log_info "Registering runner with name '$runner_name'..."
@@ -142,13 +157,12 @@ register_runner() {
         set -e
         
         # Treat registration as successful only if the config now contains a runner token.
-        # Use || true to prevent grep failures from exiting the script
         if grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" 2>/dev/null && grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET" 2>/dev/null; then
             log_info "Runner registered successfully with name '$runner_name'!"
             return 0
         fi
- 2>/dev/null
-        if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance'; then
+
+        if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance' 2>/dev/null; then
             log_info "Runner name '$runner_name' already exists on this instance"
 
             case "$name_conflict_action" in
@@ -183,16 +197,17 @@ register_runner() {
     done
 }
 
-# Register before starting the server if needed (avoids races and misleading success logs)
+# Start registration in background if needed (server must be running first)
 if [ "$CONFIG_GENERATED" = "true" ] || [ "$NEEDS_REGISTRATION" = "true" ]; then
     if [ -n "$PEERTUBE_RUNNER_URL" ] && [ -n "$PEERTUBE_RUNNER_TOKEN" ]; then
-        register_runner
+        register_runner &
+        REGISTER_PID=$!
     else
         log_info "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN not provided"
         exit 1
     fi
 fi
 
-# Start the server
+# Start the server (this will allow register_runner to connect via socket)
 exec $SERVER_CMD
 
