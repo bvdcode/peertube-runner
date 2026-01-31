@@ -33,7 +33,7 @@ for i in "${!ORIG_ARGS[@]}"; do
     esac
 done
 
-if "$REAL_FFMPEG" -hwaccel cuda -hwaccel_output_format cuda "${NEW_ARGS[@]}" 2>/dev/null; then
+if "$REAL_FFMPEG" "${NEW_ARGS[@]}" 2>/dev/null; then
     exit 0
 else
     exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
