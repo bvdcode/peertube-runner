@@ -8,7 +8,7 @@ on:
 
 env:
   CONTEXT_DIR: .
-  IMAGE_TAG: v1.0
+  IMAGE_TAG: v1.1
   DOCKERFILE: Dockerfile
   DOCKER_NAMESPACE: bvdcode
   DOCKER_IMAGE_NAME: peertube-runner-gpu
