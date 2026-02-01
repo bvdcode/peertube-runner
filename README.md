@@ -399,7 +399,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu22.04 nvidia-smi
 
 **Performance Tuning:**
 
-````yaml
+```yaml
 # Low memory:
 - PEERTUBE_RUNNER_WHISPER_MODEL=small
 - PEERTUBE_RUNNER_CONCURRENCY=1
@@ -465,6 +465,4 @@ git clone https://github.com/bvdcode/peertube-runner.git
 cd peertube-runner
 docker build -t peertube-runner-gpu:dev .
 docker run --rm --gpus all -e PEERTUBE_RUNNER_URL=... -e PEERTUBE_RUNNER_TOKEN=... peertube-runner-gpu:dev
-````
-
-Pull requests welcome!
+```
