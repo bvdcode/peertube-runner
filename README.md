@@ -48,6 +48,7 @@ This project provides a containerized PeerTube Runner with NVIDIA CUDA support, 
 - `live-rtmp-hls-transcoding` - Live streaming transcoding
 - `video-studio-transcoding` - Video studio editing transcoding
 - `video-transcription` - AI-powered video transcription
+- `generate-video-storyboard` - Video storyboard generation
 
 ## Prerequisites
 
@@ -150,7 +151,7 @@ You can limit the runner to specific job types by setting `PEERTUBE_RUNNER_JOB_T
 PEERTUBE_RUNNER_JOB_TYPES=video-transcription
 
 # Multiple job types
-PEERTUBE_RUNNER_JOB_TYPES=vod-hls-transcoding,video-transcription,video-studio-transcoding
+PEERTUBE_RUNNER_JOB_TYPES=vod-hls-transcoding,video-transcription,video-studio-transcoding,generate-video-storyboard
 
 # All jobs (default if not specified)
 # Leave empty or omit the variable
