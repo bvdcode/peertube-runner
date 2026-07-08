@@ -1,10 +1,11 @@
-FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/usr/local/bin:${PATH}"
+ENV VIRTUAL_ENV="/opt/peertube-runner-venv"
+ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/bin:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip ffmpeg curl ca-certificates && \
+    python3 python3-venv ffmpeg curl ca-certificates && \
     mv /usr/bin/ffmpeg /usr/local/bin/ffmpeg-real && \
     rm -rf /var/lib/apt/lists/*
 
@@ -13,7 +14,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir \
+RUN python3 -m venv "${VIRTUAL_ENV}" && \
+    pip install --no-cache-dir \
     ctranslate2==4.6.0 \
     whisper-ctranslate2==0.5.3
 

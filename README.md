@@ -30,7 +30,7 @@ This project provides a containerized PeerTube Runner with NVIDIA CUDA support, 
 
 ## Features
 
-- 🚀 **GPU Acceleration**: NVIDIA CUDA 12.8.0 support with cuDNN runtime
+- 🚀 **GPU Acceleration**: NVIDIA CUDA 12.8.0 support with cuDNN runtime on Ubuntu 24.04
 - � **Video Transcoding**: Support for VOD web video, HLS, audio merge transcoding
 - 📺 **Live Streaming**: Live RTMP to HLS transcoding support
 - 🎬 **Video Studio**: Video studio transcoding capabilities
@@ -38,7 +38,7 @@ This project provides a containerized PeerTube Runner with NVIDIA CUDA support, 
 - 🐳 **Docker Ready**: Easy deployment with Docker and Docker Compose
 - 🔧 **Flexible Configuration**: Environment variables or config file support
 - ⚙️ **Auto-building**: GitHub Actions for automated Docker image builds
-- 🏃 **Production Ready**: Based on Ubuntu 22.04 with optimized dependencies
+- 🏃 **Production Ready**: Based on Ubuntu 24.04 with optimized dependencies
 
 ## Supported Job Types
 
@@ -212,8 +212,8 @@ The project uses GitHub Actions for automated builds:
 
 ### Software Stack
 
-- **Base Image**: NVIDIA CUDA 12.8.0 with cuDNN runtime on Ubuntu 22.04
-- **Python**: Python 3 with pip
+- **Base Image**: NVIDIA CUDA 12.8.0 with cuDNN runtime on Ubuntu 24.04
+- **Python**: Python 3 with an isolated virtual environment
 - **Node.js**: Node.js 20.x LTS
 - **FFmpeg**: For video processing and transcoding
 - **PeerTube Runner**: Latest version from npm
@@ -343,7 +343,7 @@ nvidia-smi
 2. Check Docker can access GPU:
 
 ```bash
-docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu24.04 nvidia-smi
 ```
 
 3. Ensure nvidia-container-toolkit is installed and Docker is restarted.
@@ -387,7 +387,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu22.04 nvidia-smi
 **GPU Not Detected:**
 
 - Check: `nvidia-smi` on host
-- Verify: `docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu22.04 nvidia-smi`
+- Verify: `docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu24.04 nvidia-smi`
 - Install nvidia-container-toolkit if missing
 
 **"NVENC not available" in logs:**
