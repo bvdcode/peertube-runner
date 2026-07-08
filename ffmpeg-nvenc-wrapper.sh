@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+log_wrapper() {
+    echo "[peertube-runner-gpu ffmpeg] $1" >&2
+}
+
 REAL_FFMPEG="${FFMPEG_REAL_PATH:-/usr/local/bin/ffmpeg-real}"
 if [ ! -x "$REAL_FFMPEG" ]; then
     REAL_FFMPEG="$(command -v ffmpeg-real || true)"
@@ -12,6 +16,7 @@ if [ -z "$REAL_FFMPEG" ]; then
 fi
 
 ORIG_ARGS=("$@")
+NVENC_CHANGES=()
 
 if [ "${#ORIG_ARGS[@]}" -eq 1 ]; then
     case "${ORIG_ARGS[0]}" in
@@ -19,6 +24,21 @@ if [ "${#ORIG_ARGS[@]}" -eq 1 ]; then
             exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
             ;;
     esac
+fi
+
+for arg in "${ORIG_ARGS[@]}"; do
+    case "$arg" in
+        libx264)
+            NVENC_CHANGES+=("libx264 -> h264_nvenc")
+            ;;
+        libx265)
+            NVENC_CHANGES+=("libx265 -> hevc_nvenc")
+            ;;
+    esac
+done
+
+if [ "${#NVENC_CHANGES[@]}" -eq 0 ]; then
+    exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
 fi
 
 NEW_ARGS=()
@@ -54,8 +74,19 @@ for i in "${!ORIG_ARGS[@]}"; do
     esac
 done
 
-if "$REAL_FFMPEG" "${NEW_ARGS[@]}" 2>/dev/null; then
+IFS=", "
+log_wrapper "NVENC attempt: ${NVENC_CHANGES[*]}"
+unset IFS
+
+set +e
+"$REAL_FFMPEG" "${NEW_ARGS[@]}"
+ffmpeg_status=$?
+set -e
+
+if [ "$ffmpeg_status" -eq 0 ]; then
+    log_wrapper "NVENC command completed successfully"
     exit 0
 fi
 
+log_wrapper "NVENC command failed with status $ffmpeg_status; falling back to original FFmpeg command"
 exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"

@@ -25,6 +25,34 @@ test_runner_logger_hides_objects_without_verbose() {
         -lc 'grep -Fq '\''hideObject: !process.argv.includes("--verbose")'\'' "$(npm root -g)/@peertube/peertube-runner/dist/peertube-runner.mjs"'
 }
 
+test_ffmpeg_wrapper_reports_nvenc_fallback() {
+    local output_file="ffmpeg-wrapper-fallback.log"
+    local ffmpeg_status
+
+    set +e
+    docker run --rm \
+        --entrypoint ffmpeg \
+        "$IMAGE" \
+        -hide_banner \
+        -f lavfi \
+        -i testsrc2=duration=0.1:size=16x16:rate=1 \
+        -c:v libx264 \
+        -f null - > "$output_file" 2>&1
+    ffmpeg_status=$?
+    set -e
+
+    cat "$output_file"
+
+    if [ "$ffmpeg_status" -ne 0 ]; then
+        echo "Expected FFmpeg wrapper to fall back after NVENC failure" >&2
+        exit 1
+    fi
+
+    grep -Fq "[peertube-runner-gpu ffmpeg] NVENC attempt: libx264 -> h264_nvenc" "$output_file"
+    grep -Fq "[peertube-runner-gpu ffmpeg] NVENC command failed with status" "$output_file"
+    grep -Fq "falling back to original FFmpeg command" "$output_file"
+}
+
 wait_for_log_line() {
     local container_name="$1"
     local output_file="$2"
@@ -432,6 +460,7 @@ EOF"
 
 run_tool_smoke_tests
 test_runner_logger_hides_objects_without_verbose
+test_ffmpeg_wrapper_reports_nvenc_fallback
 test_entrypoint_repairs_root_owned_volumes
 test_registration_logs_are_concise
 test_debug_logs_use_debug_level
