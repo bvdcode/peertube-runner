@@ -38,6 +38,26 @@ wait_for_log_line() {
     return 1
 }
 
+dump_container_state() {
+    local container_name="$1"
+    local config_path="/home/runner/.config/peertube-runner-nodejs/default/config.toml"
+
+    echo "Container state:"
+    docker inspect -f 'status={{.State.Status}} running={{.State.Running}} exit={{.State.ExitCode}} error={{.State.Error}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$container_name" || true
+
+    echo "Container processes:"
+    docker top "$container_name" || true
+
+    echo "Runner directories:"
+    docker exec "$container_name" sh -lc 'ls -ld /home/runner /home/runner/.config /home/runner/.config/peertube-runner-nodejs /home/runner/.config/peertube-runner-nodejs/default /home/runner/.cache /home/runner/.local/share/peertube-runner-nodejs/default' || true
+
+    echo "Runner config:"
+    docker exec "$container_name" sh -lc "sed -E 's/ptrrt-[[:alnum:]-]+/<registration-token>/g; s/ptrt-[[:alnum:]-]+/<runner-token>/g' '$config_path'" || true
+
+    echo "Container logs:"
+    docker logs "$container_name" || true
+}
+
 test_entrypoint_repairs_root_owned_volumes() {
     local run_id="${GITHUB_RUN_ID:-local}"
     local run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
@@ -207,6 +227,7 @@ EOF'
 
     if ! wait_for_log_line "$container_name" "$output_file" "Running PeerTube runner in server mode" 8; then
         cat "$output_file"
+        dump_container_state "$container_name"
         echo "Expected existing-config runner to write startup logs" >&2
         exit 1
     fi
@@ -351,6 +372,7 @@ EOF"
 
     if ! wait_for_log_line "$container_name" "$output_file" "Runner registered successfully with name 'peertube-runner-smoke'" 25; then
         cat "$output_file"
+        dump_container_state "$container_name"
         echo "Expected stale runner token recovery to register a fresh runner" >&2
         exit 1
     fi
