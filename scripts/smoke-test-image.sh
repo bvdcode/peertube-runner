@@ -38,6 +38,27 @@ wait_for_log_line() {
     return 1
 }
 
+wait_for_log_line_count() {
+    local container_name="$1"
+    local output_file="$2"
+    local expected_line="$3"
+    local expected_count="$4"
+    local attempts="$5"
+
+    for _ in $(seq 1 "$attempts"); do
+        docker logs "$container_name" > "$output_file" 2>&1 || true
+
+        if [ "$(grep -Fc "$expected_line" "$output_file" || true)" -ge "$expected_count" ]; then
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    docker logs "$container_name" > "$output_file" 2>&1 || true
+    return 1
+}
+
 dump_container_state() {
     local container_name="$1"
     local config_path="/home/runner/.config/peertube-runner-nodejs/default/config.toml"
@@ -379,6 +400,13 @@ EOF"
         cat "$output_file"
         dump_container_state "$container_name"
         echo "Expected stale runner token recovery to register a fresh runner" >&2
+        exit 1
+    fi
+
+    if ! wait_for_log_line_count "$container_name" "$output_file" "Checking available jobs on $base_url" 2 25; then
+        cat "$output_file"
+        dump_container_state "$container_name"
+        echo "Expected recovered runner to continue with visible job polling logs" >&2
         exit 1
     fi
 

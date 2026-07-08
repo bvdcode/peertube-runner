@@ -449,8 +449,9 @@ run_registration_flow() {
     wait_for_server_socket "$SERVER_PID"
     register_runner
 
-    wait "$SERVER_PID"
-    wait_for_log_filter
+    stop_server
+    trap - INT TERM EXIT
+    run_server
 }
 
 run_persisted_registration_flow() {
