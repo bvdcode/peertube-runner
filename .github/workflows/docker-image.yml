@@ -56,56 +56,7 @@ jobs:
           tags: ${{ env.VALIDATION_IMAGE }}
 
       - name: Smoke test Docker image
-        run: |
-          set -euo pipefail
-          docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -version
-          docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -encoders > ffmpeg-encoders.txt
-          grep -q h264_nvenc ffmpeg-encoders.txt
-          docker run --rm --entrypoint python "${VALIDATION_IMAGE}" -c "import ctranslate2; print(ctranslate2.__version__)"
-          docker run --rm --entrypoint whisper-ctranslate2 "${VALIDATION_IMAGE}" --help
-          docker run --rm --entrypoint peertube-runner "${VALIDATION_IMAGE}" --help
-
-          CONFIG_VOLUME="peertube-runner-config-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          CACHE_VOLUME="peertube-runner-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-
-          cleanup() {
-            docker volume rm -f "${CONFIG_VOLUME}" "${CACHE_VOLUME}" >/dev/null 2>&1 || true
-          }
-
-          trap cleanup EXIT
-          docker volume create "${CONFIG_VOLUME}" >/dev/null
-          docker volume create "${CACHE_VOLUME}" >/dev/null
-
-          docker run --rm \
-            -v "${CONFIG_VOLUME}:/home/runner/.config/peertube-runner-nodejs" \
-            -v "${CACHE_VOLUME}:/home/runner/.cache" \
-            --entrypoint bash \
-            "${VALIDATION_IMAGE}" \
-            -lc 'mkdir -p /home/runner/.config/peertube-runner-nodejs/default /home/runner/.cache && chown -R root:root /home/runner/.config/peertube-runner-nodejs /home/runner/.cache'
-
-          set +e
-          docker run --rm \
-            -v "${CONFIG_VOLUME}:/home/runner/.config/peertube-runner-nodejs" \
-            -v "${CACHE_VOLUME}:/home/runner/.cache" \
-            "${VALIDATION_IMAGE}" > entrypoint-volume.log 2>&1
-          ENTRYPOINT_STATUS=$?
-          set -e
-
-          cat entrypoint-volume.log
-          if [ "${ENTRYPOINT_STATUS}" -eq 0 ]; then
-            echo "Expected entrypoint to fail without required registration environment"
-            exit 1
-          fi
-
-          grep -q "PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required" entrypoint-volume.log
-          ! grep -q "Cannot create config directory" entrypoint-volume.log
-
-          docker run --rm \
-            -v "${CONFIG_VOLUME}:/home/runner/.config/peertube-runner-nodejs" \
-            -v "${CACHE_VOLUME}:/home/runner/.cache" \
-            --entrypoint bash \
-            "${VALIDATION_IMAGE}" \
-            -lc 'gosu runner test -w /home/runner/.config/peertube-runner-nodejs/default && gosu runner test -w /home/runner/.cache'
+        run: bash scripts/smoke-test-image.sh "${VALIDATION_IMAGE}"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3

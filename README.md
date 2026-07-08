@@ -74,6 +74,7 @@ For CPU-only use, remove the `deploy.resources.reservations.devices` section fro
 | `PEERTUBE_RUNNER_ENGINE`         | `whisper-ctranslate2` | Transcription engine                            |
 | `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model                                   |
 | `PEERTUBE_RUNNER_JOB_TYPES`      | All jobs              | Comma-separated job types                       |
+| `PEERTUBE_RUNNER_DEBUG`          | `false`               | Show structured runner diagnostics             |
 
 Example `config.toml` for runner settings:
 
@@ -119,11 +120,7 @@ docker build --build-arg PEERTUBE_RUNNER_VERSION=0.6.0 -t peertube-runner-gpu .
 ## Smoke Tests
 
 ```bash
-docker run --rm --entrypoint ffmpeg peertube-runner-gpu -version
-docker run --rm --entrypoint ffmpeg peertube-runner-gpu -encoders
-docker run --rm --entrypoint python peertube-runner-gpu -c "import ctranslate2; print(ctranslate2.__version__)"
-docker run --rm --entrypoint whisper-ctranslate2 peertube-runner-gpu --help
-docker run --rm --entrypoint peertube-runner peertube-runner-gpu --help
+bash scripts/smoke-test-image.sh peertube-runner-gpu
 docker run --rm --gpus all --entrypoint nvidia-smi peertube-runner-gpu
 ```
 

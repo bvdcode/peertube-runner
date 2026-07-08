@@ -24,6 +24,74 @@ SERVER_PID=""
 
 PEERTUBE_RUNNER_NAME="${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}"
 
+runner_debug_enabled() {
+    case "${PEERTUBE_RUNNER_DEBUG:-false}" in
+        "1"|"true"|"TRUE"|"yes"|"YES"|"on"|"ON")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+sanitize_log_text() {
+    sed -E \
+        -e 's/ptrrt-[[:alnum:]-]+/<registration-token>/g' \
+        -e 's/ptrt-[[:alnum:]-]+/<runner-token>/g'
+}
+
+filter_runner_logs() {
+    local include_details="$1"
+
+    awk -v include_details="$include_details" '
+        function redact(line) {
+            gsub(/ptrrt-[[:alnum:]-]+/, "<registration-token>", line)
+            gsub(/ptrt-[[:alnum:]-]+/, "<runner-token>", line)
+            return line
+        }
+
+        function emit(line) {
+            print redact(line)
+            fflush()
+        }
+
+        include_details == "true" {
+            emit($0)
+            next
+        }
+
+        skipping_details && /^\[[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9][0-9]\] / {
+            skipping_details = 0
+        }
+
+        skipping_details {
+            next
+        }
+
+        /^\[[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9][0-9]\] ERROR \([0-9]+\): Cannot execute RPC call$/ {
+            next
+        }
+
+        /^    (err|payload): \{/ {
+            skipping_details = 1
+            next
+        }
+
+        {
+            emit($0)
+        }
+    '
+}
+
+runner_log_detail_mode() {
+    if runner_debug_enabled; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 prepare_runner_storage() {
     mkdir -p "$CONFIG_DIR" "$CACHE_DIR" "$RUNNER_DATA_DIR"
     chown -R runner:runner "$CONFIG_ROOT" "$CACHE_DIR" "$RUNNER_DATA_ROOT"
@@ -163,6 +231,34 @@ printf -v SERVER_CMD_DISPLAY '%q ' "${SERVER_CMD[@]}"
 log_info "Starting PeerTube Runner with command: ${SERVER_CMD_DISPLAY% }"
 log_info "Config file location: $CONFIG_TARGET"
 
+start_runner_server() {
+    local include_details
+    include_details=$(runner_log_detail_mode)
+
+    "${SERVER_CMD[@]}" > >(filter_runner_logs "$include_details") 2>&1 &
+    SERVER_PID=$!
+}
+
+exec_runner_server() {
+    local include_details
+    include_details=$(runner_log_detail_mode)
+
+    exec "${SERVER_CMD[@]}" > >(filter_runner_logs "$include_details") 2>&1
+}
+
+log_registration_failure() {
+    local reg_output="$1"
+
+    if runner_debug_enabled; then
+        local sanitized_output
+        sanitized_output=$(printf '%s' "$reg_output" | sanitize_log_text)
+        log_info "Failed to register runner. Output: $sanitized_output"
+    else
+        log_info "Failed to register runner"
+        log_info "Set PEERTUBE_RUNNER_DEBUG=true to include registration command output"
+    fi
+}
+
 register_runner() {
     local runner_name="$PEERTUBE_RUNNER_NAME"
     local name_conflict_action="${PEERTUBE_RUNNER_NAME_CONFLICT:-exit}"
@@ -208,7 +304,7 @@ register_runner() {
             if [ "$reg_status" -eq 0 ]; then
                 log_info "Registration command exited successfully, but no runner token was written to config"
             fi
-            log_info "Failed to register runner. Output: $reg_output"
+            log_registration_failure "$reg_output"
             return 1
         fi
     done
@@ -251,8 +347,7 @@ if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
         exit 1
     fi
 
-    "${SERVER_CMD[@]}" &
-    SERVER_PID=$!
+    start_runner_server
     trap stop_server INT TERM EXIT
 
     wait_for_server_socket "$SERVER_PID"
@@ -260,5 +355,5 @@ if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
 
     wait "$SERVER_PID"
 else
-    exec "${SERVER_CMD[@]}"
+    exec_runner_server
 fi
