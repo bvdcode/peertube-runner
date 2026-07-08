@@ -10,6 +10,12 @@ log_info() {
     echo "[${timestamp}.${milliseconds}] INFO ($$): $1"
 }
 
+log_debug() {
+    if runner_debug_enabled; then
+        log_info "$1"
+    fi
+}
+
 CONFIG_SOURCE="/home/runner/config.toml"
 CONFIG_ROOT="/home/runner/.config/peertube-runner-nodejs"
 CONFIG_DIR="$CONFIG_ROOT/default"
@@ -143,12 +149,12 @@ apply_dynamic_config() {
     PEERTUBE_RUNNER_ENGINE="${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}"
     PEERTUBE_RUNNER_WHISPER_MODEL="${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}"
 
-    log_info "Updating config parameters"
-    log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
-    log_info "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
-    log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
-    log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
-    log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
+    log_info "Updating config parameters from environment"
+    log_debug "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
+    log_debug "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
+    log_debug "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
+    log_debug "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
+    log_debug "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
 
     sed -i "s/^concurrency *=.*/concurrency = $PEERTUBE_RUNNER_CONCURRENCY/" "$CONFIG_TARGET"
     sed -i "s/^threads *=.*/threads = $PEERTUBE_RUNNER_FFMPEG_THREADS/" "$CONFIG_TARGET"
@@ -169,14 +175,14 @@ generate_config_from_environment() {
     PEERTUBE_RUNNER_ENGINE="${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}"
     PEERTUBE_RUNNER_WHISPER_MODEL="${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}"
 
-    log_info "Generating config file"
-    log_info "  URL: $PEERTUBE_RUNNER_URL"
-    log_info "  Runner Name: $PEERTUBE_RUNNER_NAME"
-    log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
-    log_info "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
-    log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
-    log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
-    log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
+    log_info "Generating config file from environment"
+    log_debug "  URL: $PEERTUBE_RUNNER_URL"
+    log_debug "  Runner Name: $PEERTUBE_RUNNER_NAME"
+    log_debug "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
+    log_debug "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
+    log_debug "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
+    log_debug "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
+    log_debug "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
 
     cat > "$CONFIG_TARGET" << EOF
 [jobs]
@@ -195,10 +201,12 @@ EOF
 }
 
 if [ -f "$CONFIG_TARGET" ]; then
-    log_info "Using existing config file at $CONFIG_TARGET"
+    log_debug "Using existing config file at $CONFIG_TARGET"
     apply_dynamic_config
 elif [ -f "$CONFIG_SOURCE" ]; then
-    log_info "Copying config file from $CONFIG_SOURCE to $CONFIG_TARGET"
+    log_info "Copying config file from mounted config.toml"
+    log_debug "  Source: $CONFIG_SOURCE"
+    log_debug "  Target: $CONFIG_TARGET"
     cp "$CONFIG_SOURCE" "$CONFIG_TARGET"
 else
     generate_config_from_environment
@@ -208,13 +216,14 @@ if ! runner_token_written; then
     log_info "No registered runner token found in config"
     NEEDS_REGISTRATION=true
 else
-    log_info "Registered runner token found in config"
+    log_debug "Registered runner token found in config"
 fi
 
 SERVER_CMD=(peertube-runner server)
 
 if [ -n "${PEERTUBE_RUNNER_JOB_TYPES:-}" ]; then
-    log_info "Configuring job types: $PEERTUBE_RUNNER_JOB_TYPES"
+    log_info "Configuring selected job types"
+    log_debug "  Job types: $PEERTUBE_RUNNER_JOB_TYPES"
 
     IFS=',' read -r -a JOB_TYPES <<< "$PEERTUBE_RUNNER_JOB_TYPES"
     for job_type in "${JOB_TYPES[@]}"; do
@@ -224,12 +233,12 @@ if [ -n "${PEERTUBE_RUNNER_JOB_TYPES:-}" ]; then
         fi
     done
 else
-    log_info "No specific job types configured"
+    log_debug "No specific job types configured"
 fi
 
 printf -v SERVER_CMD_DISPLAY '%q ' "${SERVER_CMD[@]}"
-log_info "Starting PeerTube Runner with command: ${SERVER_CMD_DISPLAY% }"
-log_info "Config file location: $CONFIG_TARGET"
+log_debug "Starting PeerTube Runner with command: ${SERVER_CMD_DISPLAY% }"
+log_debug "Config file location: $CONFIG_TARGET"
 
 start_runner_server() {
     local include_details
@@ -314,7 +323,7 @@ wait_for_server_socket() {
     local server_pid="$1"
     local retries=0
 
-    log_info "Waiting for PeerTube Runner server socket"
+    log_debug "Waiting for PeerTube Runner server socket"
     while [ ! -S "$SOCKET_PATH" ] && [ "$retries" -lt 30 ]; do
         if ! kill -0 "$server_pid" 2>/dev/null; then
             log_info "ERROR: PeerTube Runner server exited before creating socket"
@@ -331,7 +340,7 @@ wait_for_server_socket() {
         return 1
     fi
 
-    log_info "Server socket is ready"
+    log_debug "Server socket is ready"
 }
 
 stop_server() {

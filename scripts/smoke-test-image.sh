@@ -105,6 +105,11 @@ test_registration_logs_are_concise() {
         echo "Default logs exposed registration diagnostics that should be hidden" >&2
         exit 1
     fi
+
+    if grep -q "Config file location\|Starting PeerTube Runner with command\|  URL:" "$output_file"; then
+        echo "Default logs should not include wrapper startup details" >&2
+        exit 1
+    fi
 }
 
 run_tool_smoke_tests
