@@ -3,7 +3,22 @@
 set -euo pipefail
 
 log_wrapper() {
-    echo "[peertube-runner-gpu ffmpeg] $1" >&2
+    local message="[peertube-runner-gpu ffmpeg] $1"
+    local self_stderr
+    local container_stderr
+
+    echo "$message" >&2
+
+    if [ ! -e /proc/1/fd/2 ]; then
+        return
+    fi
+
+    self_stderr="$(readlink /proc/self/fd/2 2>/dev/null || true)"
+    container_stderr="$(readlink /proc/1/fd/2 2>/dev/null || true)"
+
+    if [ -n "$container_stderr" ] && [ "$self_stderr" != "$container_stderr" ]; then
+        echo "$message" > /proc/1/fd/2 2>/dev/null || true
+    fi
 }
 
 REAL_FFMPEG="${FFMPEG_REAL_PATH:-/usr/local/bin/ffmpeg-real}"
