@@ -8,8 +8,3 @@ nice = 20
 [transcription]
 engine = "whisper-ctranslate2"
 model = "large-v3"
-
-[[registeredInstances]]
-url = "https://peertube.example.com"
-runnerToken = "ptrt-example"
-runnerName = "peertube-runner-gpu"

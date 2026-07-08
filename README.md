@@ -42,7 +42,7 @@ docker run -d --name peertube-runner-gpu \
 - NVIDIA Container Toolkit for GPU access
 - NVIDIA driver compatible with CUDA 12.8
 
-The container can start without a GPU, but GPU transcoding and GPU transcription require the NVIDIA runtime.
+The container can start without a GPU if `--gpus all` is omitted. GPU transcoding and GPU transcription require the NVIDIA runtime.
 
 ## Docker Compose
 
@@ -52,7 +52,9 @@ Edit `docker-compose.yml` with your PeerTube URL and registration token, then ru
 docker compose up -d
 ```
 
-The compose file uses environment variables by default. To use a file instead, copy `config.example.toml` to `config.toml`, edit it, and uncomment the volume mount in `docker-compose.yml`.
+The compose file uses environment variables by default. To use file-based runner settings, copy `config.example.toml` to `config.toml`, edit it, and uncomment the volume mount in `docker-compose.yml`. Keep `PEERTUBE_RUNNER_URL` and `PEERTUBE_RUNNER_TOKEN` set for first-time registration unless your config already contains a registered runner token.
+
+For CPU-only use, remove the `deploy.resources.reservations.devices` section from `docker-compose.yml`.
 
 ## Configuration
 
@@ -69,7 +71,7 @@ The compose file uses environment variables by default. To use a file instead, c
 | `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model                                   |
 | `PEERTUBE_RUNNER_JOB_TYPES`      | All jobs              | Comma-separated job types                       |
 
-Example `config.toml`:
+Example `config.toml` for runner settings:
 
 ```toml
 [jobs]
@@ -82,12 +84,9 @@ nice = 20
 [transcription]
 engine = "whisper-ctranslate2"
 model = "large-v3"
-
-[[registeredInstances]]
-url = "https://your-peertube-instance.com"
-runnerToken = "your_runner_token_here"
-runnerName = "peertube-runner-gpu"
 ```
+
+PeerTube Runner writes `[[registeredInstances]]` to its runtime config after successful registration. If you provide a fully registered config file yourself, use the runner token stored by PeerTube Runner, not the first-time registration token.
 
 ## Runner Name Conflicts
 
