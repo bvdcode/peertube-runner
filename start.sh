@@ -14,13 +14,32 @@ CONFIG_SOURCE="/home/runner/config.toml"
 CONFIG_TARGET="/home/runner/.config/peertube-runner-nodejs/default/config.toml"
 CONFIG_DIR="/home/runner/.config/peertube-runner-nodejs/default"
 SOCKET_PATH="/home/runner/.local/share/peertube-runner-nodejs/default/peertube-runner.sock"
+CACHE_DIR="/home/runner/.cache"
 CONFIG_GENERATED=false
 NEEDS_REGISTRATION=false
 SERVER_PID=""
 
 PEERTUBE_RUNNER_NAME="${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}"
 
-mkdir -p "$CONFIG_DIR"
+ensure_writable_directory() {
+    local directory="$1"
+    local description="$2"
+
+    if ! mkdir -p "$directory"; then
+        log_info "ERROR: Cannot create $description directory at $directory"
+        log_info "Check that the mounted Docker volume is writable by the runner user"
+        exit 1
+    fi
+
+    if [ ! -w "$directory" ]; then
+        log_info "ERROR: $description directory is not writable at $directory"
+        log_info "Check that the mounted Docker volume is writable by the runner user"
+        exit 1
+    fi
+}
+
+ensure_writable_directory "$CONFIG_DIR" "config"
+ensure_writable_directory "$CACHE_DIR" "cache"
 
 runner_token_written() {
     grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" 2>/dev/null &&

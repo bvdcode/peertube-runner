@@ -151,6 +151,16 @@ For registration issues, verify:
 - `PEERTUBE_RUNNER_TOKEN` is a registration token
 - `PEERTUBE_RUNNER_NAME` is unique, or `PEERTUBE_RUNNER_NAME_CONFLICT` is set to `auto` or `wait`
 
+If the container logs say it cannot create `/home/runner/.config/peertube-runner-nodejs/default`, the config volume was created with the wrong ownership. Recreate the volume after pulling a fixed image:
+
+```bash
+docker compose down -v
+docker compose pull
+docker compose up -d
+```
+
+This removes the persisted runner registration and cache for this compose project. Remove stale runner entries from the PeerTube admin UI if the container had already registered timestamped runner names.
+
 ## Images
 
 - `bvdcode/peertube-runner-gpu:latest`

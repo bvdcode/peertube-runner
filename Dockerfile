@@ -32,6 +32,10 @@ COPY ffmpeg-nvenc-wrapper.sh /usr/local/bin/ffmpeg
 RUN chmod +x /usr/local/bin/ffmpeg
 
 RUN useradd -ms /bin/bash runner && \
+    mkdir -p \
+        /home/runner/.config/peertube-runner-nodejs/default \
+        /home/runner/.cache \
+        /home/runner/.local/share/peertube-runner-nodejs/default && \
     chown -R runner:runner /home/runner
 USER runner
 WORKDIR /home/runner
