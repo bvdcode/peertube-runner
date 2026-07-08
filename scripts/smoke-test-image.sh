@@ -12,10 +12,30 @@ fi
 run_tool_smoke_tests() {
     docker run --rm --entrypoint ffmpeg "$IMAGE" -version
     docker run --rm --entrypoint ffmpeg "$IMAGE" -encoders > ffmpeg-encoders.txt
-    grep -q h264_nvenc ffmpeg-encoders.txt
+    grep -Fq h264_nvenc ffmpeg-encoders.txt
     docker run --rm --entrypoint python "$IMAGE" -c "import ctranslate2; print(ctranslate2.__version__)"
     docker run --rm --entrypoint whisper-ctranslate2 "$IMAGE" --help
     docker run --rm --entrypoint peertube-runner "$IMAGE" --help
+}
+
+wait_for_log_line() {
+    local container_name="$1"
+    local output_file="$2"
+    local expected_line="$3"
+    local attempts="$4"
+
+    for _ in $(seq 1 "$attempts"); do
+        docker logs "$container_name" > "$output_file" 2>&1 || true
+
+        if grep -Fq "$expected_line" "$output_file"; then
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    docker logs "$container_name" > "$output_file" 2>&1 || true
+    return 1
 }
 
 test_entrypoint_repairs_root_owned_volumes() {
@@ -55,9 +75,9 @@ test_entrypoint_repairs_root_owned_volumes() {
         exit 1
     fi
 
-    grep -q "PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required" "$output_file"
+    grep -Fq "PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required" "$output_file"
 
-    if grep -q "Cannot create config directory" "$output_file"; then
+    if grep -Fq "Cannot create config directory" "$output_file"; then
         echo "Entrypoint did not repair the config volume ownership" >&2
         exit 1
     fi
@@ -94,19 +114,19 @@ test_registration_logs_are_concise() {
         exit 1
     fi
 
-    grep -q "Failed to register runner" "$output_file"
+    grep -Fq "Failed to register runner" "$output_file"
 
-    if grep -q '    err: {' "$output_file"; then
+    if grep -Fq '    err: {' "$output_file"; then
         echo "Default logs should not include structured runner error details" >&2
         exit 1
     fi
 
-    if grep -q '"registrationToken"\|"stack"\|ptrrt-00000000-0000-0000-0000-000000000000' "$output_file"; then
+    if grep -Eq '"registrationToken"|"stack"|ptrrt-00000000-0000-0000-0000-000000000000' "$output_file"; then
         echo "Default logs exposed registration diagnostics that should be hidden" >&2
         exit 1
     fi
 
-    if grep -q "Config file location\|Starting PeerTube Runner with command\|  URL:" "$output_file"; then
+    if grep -Eq "Config file location|Starting PeerTube Runner with command|  URL:" "$output_file"; then
         echo "Default logs should not include wrapper startup details" >&2
         exit 1
     fi
@@ -134,10 +154,10 @@ test_debug_logs_use_debug_level() {
         exit 1
     fi
 
-    grep -q "DEBUG (1):   URL:" "$output_file"
-    grep -q "peertube-runner --verbose server" "$output_file"
+    grep -Fq "DEBUG (1):   URL:" "$output_file"
+    grep -Fq "peertube-runner --verbose server" "$output_file"
 
-    if grep -q "INFO (1):   URL:" "$output_file"; then
+    if grep -Fq "INFO (1):   URL:" "$output_file"; then
         echo "Debug wrapper logs should use DEBUG level" >&2
         exit 1
     fi
@@ -148,12 +168,13 @@ test_existing_config_default_logs_are_useful() {
     local run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
     local volume_suffix="${run_id}-${run_attempt}-existing-$$"
     local config_volume="peertube-runner-config-smoke-${volume_suffix}"
+    local container_name="peertube-runner-existing-smoke-${volume_suffix}"
     local output_file="entrypoint-existing-config.log"
-    local entrypoint_status
 
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
     docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
     docker volume create "$config_volume" >/dev/null
-    trap "docker volume rm -f '$config_volume' >/dev/null 2>&1 || true" EXIT
+    trap "docker rm -f '$container_name' >/dev/null 2>&1 || true; docker volume rm -f '$config_volume' >/dev/null 2>&1 || true" EXIT
 
     docker run --rm \
         -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
@@ -177,29 +198,32 @@ runnerToken = "ptrt-00000000-0000-0000-0000-000000000000"
 runnerName = "peertube-runner-smoke"
 EOF'
 
-    set +e
-    timeout 8s docker run --rm \
+    docker run -d \
+        --name "$container_name" \
         -e PEERTUBE_RUNNER_CONCURRENCY=1 \
         -e PEERTUBE_RUNNER_FFMPEG_THREADS=1 \
         -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
-        "$IMAGE" > "$output_file" 2>&1
-    entrypoint_status=$?
-    set -e
+        "$IMAGE" >/dev/null
 
-    cat "$output_file"
-
-    if [ "$entrypoint_status" -ne 124 ]; then
-        echo "Expected existing-config runner to keep running until the timeout" >&2
+    if ! wait_for_log_line "$container_name" "$output_file" "Running PeerTube runner in server mode" 8; then
+        cat "$output_file"
+        echo "Expected existing-config runner to write startup logs" >&2
         exit 1
     fi
 
-    grep -q "Running PeerTube runner in server mode" "$output_file"
+    cat "$output_file"
 
-    if grep -q "Using existing config file\|Updating config parameters\|Applying runtime config overrides\|Config file location\|Starting PeerTube Runner with command" "$output_file"; then
+    if [ "$(docker inspect -f '{{.State.Running}}' "$container_name")" != "true" ]; then
+        echo "Expected existing-config runner to keep running" >&2
+        exit 1
+    fi
+
+    if grep -Eq "Using existing config file|Updating config parameters|Applying runtime config overrides|Config file location|Starting PeerTube Runner with command" "$output_file"; then
         echo "Default existing-config logs should not include wrapper startup details" >&2
         exit 1
     fi
 
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
     docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
     trap - EXIT
 }
@@ -209,11 +233,11 @@ test_stale_runner_token_is_replaced() {
     local run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
     local volume_suffix="${run_id}-${run_attempt}-stale-$$"
     local config_volume="peertube-runner-config-smoke-${volume_suffix}"
+    local container_name="peertube-runner-stale-smoke-${volume_suffix}"
     local output_file="entrypoint-stale-token.log"
     local server_log="fake-peertube.log"
     local port=$((18080 + ($$ % 1000)))
     local fake_server_pid
-    local entrypoint_status
     local base_url="http://host.docker.internal:${port}"
 
     python3 - "$port" > "$server_log" 2>&1 <<'PY' &
@@ -237,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/v1/runners/unregister":
-            self.send_json(200, {})
+            self.send_empty(204)
             return
 
         self.send_json(404, {"code": "not_found"})
@@ -256,6 +280,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def send_empty(self, status):
+        self.send_response(status)
+        self.send_header("content-length", "0")
+        self.end_headers()
+
 
 ThreadingHTTPServer(("0.0.0.0", int(sys.argv[1])), Handler).serve_forever()
 PY
@@ -263,6 +292,7 @@ PY
 
     cleanup_stale_test() {
         kill "$fake_server_pid" >/dev/null 2>&1 || true
+        docker rm -f "$container_name" >/dev/null 2>&1 || true
         docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
     }
 
@@ -309,27 +339,30 @@ runnerToken = \"ptrt-00000000-0000-0000-0000-000000000000\"
 runnerName = \"peertube-runner-smoke\"
 EOF"
 
-    set +e
-    timeout 25s docker run --rm \
+    docker run -d \
+        --name "$container_name" \
         --add-host=host.docker.internal:host-gateway \
         -e PEERTUBE_RUNNER_URL="$base_url" \
         -e PEERTUBE_RUNNER_TOKEN=ptrrt-00000000-0000-0000-0000-000000000000 \
         -e PEERTUBE_RUNNER_NAME=peertube-runner-smoke \
         -e PEERTUBE_RUNNER_NAME_CONFLICT=exit \
         -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
-        "$IMAGE" > "$output_file" 2>&1
-    entrypoint_status=$?
-    set -e
+        "$IMAGE" >/dev/null
 
-    cat "$output_file"
-
-    if [ "$entrypoint_status" -ne 124 ]; then
-        echo "Expected recovered runner to keep running until the timeout" >&2
+    if ! wait_for_log_line "$container_name" "$output_file" "Runner registered successfully with name 'peertube-runner-smoke'" 25; then
+        cat "$output_file"
+        echo "Expected stale runner token recovery to register a fresh runner" >&2
         exit 1
     fi
 
-    grep -q "Persisted runner registration is no longer accepted by PeerTube" "$output_file"
-    grep -q "Runner registered successfully with name 'peertube-runner-smoke'" "$output_file"
+    cat "$output_file"
+
+    if [ "$(docker inspect -f '{{.State.Running}}' "$container_name")" != "true" ]; then
+        echo "Expected recovered runner to keep running" >&2
+        exit 1
+    fi
+
+    grep -Fq "Persisted runner registration is no longer accepted by PeerTube" "$output_file"
 
     cleanup_stale_test
     trap - EXIT
