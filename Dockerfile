@@ -23,7 +23,10 @@ RUN python3 -m venv "${VIRTUAL_ENV}" && \
     ctranslate2==4.6.0 \
     whisper-ctranslate2==0.5.3
 
-RUN npm install -g "@peertube/peertube-runner@${PEERTUBE_RUNNER_VERSION}"
+COPY patch-peertube-runner-logs.mjs /tmp/patch-peertube-runner-logs.mjs
+RUN npm install -g "@peertube/peertube-runner@${PEERTUBE_RUNNER_VERSION}" && \
+    node /tmp/patch-peertube-runner-logs.mjs "$(npm root -g)/@peertube/peertube-runner/dist/peertube-runner.mjs" && \
+    rm /tmp/patch-peertube-runner-logs.mjs
 
 COPY start.sh /home/runner/start.sh
 RUN chmod +x /home/runner/start.sh

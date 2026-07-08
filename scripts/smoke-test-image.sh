@@ -18,6 +18,13 @@ run_tool_smoke_tests() {
     docker run --rm --entrypoint peertube-runner "$IMAGE" --help
 }
 
+test_runner_logger_hides_objects_without_verbose() {
+    docker run --rm \
+        --entrypoint sh \
+        "$IMAGE" \
+        -lc 'grep -Fq '\''hideObject: !process.argv.includes("--verbose")'\'' "$(npm root -g)/@peertube/peertube-runner/dist/peertube-runner.mjs"'
+}
+
 wait_for_log_line() {
     local container_name="$1"
     local output_file="$2"
@@ -424,6 +431,7 @@ EOF"
 }
 
 run_tool_smoke_tests
+test_runner_logger_hides_objects_without_verbose
 test_entrypoint_repairs_root_owned_volumes
 test_registration_logs_are_concise
 test_debug_logs_use_debug_level
