@@ -265,13 +265,6 @@ start_runner_server() {
     SERVER_PID=$!
 }
 
-exec_runner_server() {
-    local include_details
-    include_details=$(runner_log_detail_mode)
-
-    exec "${SERVER_CMD[@]}" > >(filter_runner_logs "$include_details") 2>&1
-}
-
 log_registration_failure() {
     local reg_output="$1"
 
@@ -388,6 +381,12 @@ stop_server() {
     fi
 }
 
+run_server() {
+    start_runner_server
+    trap stop_server INT TERM EXIT
+    wait "$SERVER_PID"
+}
+
 run_registration_flow() {
     if [ -z "${PEERTUBE_RUNNER_URL:-}" ] || [ -z "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
         log_error "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN is missing"
@@ -433,5 +432,5 @@ if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
 elif [ -n "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
     run_persisted_registration_flow
 else
-    exec_runner_server
+    run_server
 fi
