@@ -2,18 +2,28 @@
 
 set -euo pipefail
 
-log_info() {
+log_message() {
+    local level="$1"
+    local message="$2"
     local timestamp
     local milliseconds
     timestamp=$(date '+%H:%M:%S')
     milliseconds=$(date '+%3N')
-    echo "[${timestamp}.${milliseconds}] INFO ($$): $1"
+    echo "[${timestamp}.${milliseconds}] $level ($$): $message"
+}
+
+log_info() {
+    log_message "INFO" "$1"
 }
 
 log_debug() {
     if runner_debug_enabled; then
-        log_info "$1"
+        log_message "DEBUG" "$1"
     fi
+}
+
+log_error() {
+    log_message "ERROR" "$1"
 }
 
 CONFIG_SOURCE="/home/runner/config.toml"
@@ -27,6 +37,7 @@ CACHE_DIR="/home/runner/.cache"
 CONFIG_GENERATED=false
 NEEDS_REGISTRATION=false
 SERVER_PID=""
+RUNNER_TOKEN_VALIDATION_SECONDS=15
 
 PEERTUBE_RUNNER_NAME="${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}"
 
@@ -113,13 +124,13 @@ ensure_writable_directory() {
     local description="$2"
 
     if ! mkdir -p "$directory"; then
-        log_info "ERROR: Cannot create $description directory at $directory"
+        log_error "Cannot create $description directory at $directory"
         log_info "Check that the mounted Docker volume is writable by the runner user"
         exit 1
     fi
 
     if [ ! -w "$directory" ]; then
-        log_info "ERROR: $description directory is not writable at $directory"
+        log_error "$description directory is not writable at $directory"
         log_info "Check that the mounted Docker volume is writable by the runner user"
         exit 1
     fi
@@ -149,7 +160,7 @@ apply_dynamic_config() {
     PEERTUBE_RUNNER_ENGINE="${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}"
     PEERTUBE_RUNNER_WHISPER_MODEL="${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}"
 
-    log_info "Updating config parameters from environment"
+    log_debug "Applying runtime config overrides"
     log_debug "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
     log_debug "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
     log_debug "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
@@ -165,7 +176,7 @@ apply_dynamic_config() {
 
 generate_config_from_environment() {
     if [ -z "${PEERTUBE_RUNNER_URL:-}" ] || [ -z "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
-        log_info "ERROR: PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required"
+        log_error "PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required"
         exit 1
     fi
 
@@ -175,7 +186,7 @@ generate_config_from_environment() {
     PEERTUBE_RUNNER_ENGINE="${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}"
     PEERTUBE_RUNNER_WHISPER_MODEL="${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}"
 
-    log_info "Generating config file from environment"
+    log_info "Generating runner config"
     log_debug "  URL: $PEERTUBE_RUNNER_URL"
     log_debug "  Runner Name: $PEERTUBE_RUNNER_NAME"
     log_debug "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
@@ -219,7 +230,13 @@ else
     log_debug "Registered runner token found in config"
 fi
 
-SERVER_CMD=(peertube-runner server)
+SERVER_CMD=(peertube-runner)
+
+if runner_debug_enabled; then
+    SERVER_CMD+=(--verbose)
+fi
+
+SERVER_CMD+=(server)
 
 if [ -n "${PEERTUBE_RUNNER_JOB_TYPES:-}" ]; then
     log_info "Configuring selected job types"
@@ -326,7 +343,7 @@ wait_for_server_socket() {
     log_debug "Waiting for PeerTube Runner server socket"
     while [ ! -S "$SOCKET_PATH" ] && [ "$retries" -lt 30 ]; do
         if ! kill -0 "$server_pid" 2>/dev/null; then
-            log_info "ERROR: PeerTube Runner server exited before creating socket"
+            log_error "PeerTube Runner server exited before creating socket"
             wait "$server_pid" || true
             return 1
         fi
@@ -336,11 +353,32 @@ wait_for_server_socket() {
     done
 
     if [ ! -S "$SOCKET_PATH" ]; then
-        log_info "ERROR: Server socket not available after 30 seconds"
+        log_error "Server socket not available after 30 seconds"
         return 1
     fi
 
     log_debug "Server socket is ready"
+}
+
+wait_for_runner_token_validation() {
+    local retries=0
+
+    while [ "$retries" -lt "$RUNNER_TOKEN_VALIDATION_SECONDS" ]; do
+        if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+            log_error "PeerTube Runner server exited during registration validation"
+            wait "$SERVER_PID" || true
+            return 2
+        fi
+
+        if ! runner_token_written; then
+            return 1
+        fi
+
+        sleep 1
+        retries=$((retries + 1))
+    done
+
+    return 0
 }
 
 stop_server() {
@@ -350,9 +388,9 @@ stop_server() {
     fi
 }
 
-if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
+run_registration_flow() {
     if [ -z "${PEERTUBE_RUNNER_URL:-}" ] || [ -z "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
-        log_info "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN is missing"
+        log_error "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN is missing"
         exit 1
     fi
 
@@ -363,6 +401,37 @@ if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
     register_runner
 
     wait "$SERVER_PID"
+}
+
+run_persisted_registration_flow() {
+    local validation_status
+
+    start_runner_server
+    trap stop_server INT TERM EXIT
+
+    wait_for_server_socket "$SERVER_PID"
+    wait_for_runner_token_validation
+    validation_status=$?
+
+    if [ "$validation_status" -eq 1 ]; then
+        log_info "Persisted runner registration is no longer accepted by PeerTube"
+        log_info "Registering runner again with the configured registration token"
+        stop_server
+        run_registration_flow
+        return
+    fi
+
+    if [ "$validation_status" -eq 2 ]; then
+        exit 1
+    fi
+
+    wait "$SERVER_PID"
+}
+
+if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
+    run_registration_flow
+elif [ -n "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
+    run_persisted_registration_flow
 else
     exec_runner_server
 fi

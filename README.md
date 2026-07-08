@@ -74,7 +74,7 @@ For CPU-only use, remove the `deploy.resources.reservations.devices` section fro
 | `PEERTUBE_RUNNER_ENGINE`         | `whisper-ctranslate2` | Transcription engine                            |
 | `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model                                   |
 | `PEERTUBE_RUNNER_JOB_TYPES`      | All jobs              | Comma-separated job types                       |
-| `PEERTUBE_RUNNER_DEBUG`          | `false`               | Show structured runner diagnostics             |
+| `PEERTUBE_RUNNER_DEBUG`          | `false`               | Enable wrapper debug logs and runner verbose mode |
 
 Example `config.toml` for runner settings:
 
@@ -156,6 +156,8 @@ docker compose up -d --force-recreate
 ```
 
 Current images repair persisted config and cache volume ownership before starting the runner process. Remove stale runner entries from the PeerTube admin UI if an older image had already registered timestamped runner names.
+
+If a persisted runner entry is deleted from the PeerTube admin UI, keep `PEERTUBE_RUNNER_TOKEN` configured. The container can re-register after PeerTube rejects the stale persisted runner token.
 
 ## Images
 

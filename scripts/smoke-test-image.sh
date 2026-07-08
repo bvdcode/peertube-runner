@@ -112,6 +112,232 @@ test_registration_logs_are_concise() {
     fi
 }
 
+test_debug_logs_use_debug_level() {
+    local output_file="entrypoint-debug.log"
+    local entrypoint_status
+
+    set +e
+    docker run --rm \
+        -e PEERTUBE_RUNNER_DEBUG=true \
+        -e PEERTUBE_RUNNER_URL=http://127.0.0.1:9 \
+        -e PEERTUBE_RUNNER_TOKEN=ptrrt-00000000-0000-0000-0000-000000000000 \
+        -e PEERTUBE_RUNNER_NAME=peertube-runner-smoke \
+        -e PEERTUBE_RUNNER_NAME_CONFLICT=exit \
+        "$IMAGE" > "$output_file" 2>&1
+    entrypoint_status=$?
+    set -e
+
+    cat "$output_file"
+
+    if [ "$entrypoint_status" -eq 0 ]; then
+        echo "Expected registration to fail against an unavailable test endpoint" >&2
+        exit 1
+    fi
+
+    grep -q "DEBUG (1):   URL:" "$output_file"
+    grep -q "peertube-runner --verbose server" "$output_file"
+
+    if grep -q "INFO (1):   URL:" "$output_file"; then
+        echo "Debug wrapper logs should use DEBUG level" >&2
+        exit 1
+    fi
+}
+
+test_existing_config_default_logs_are_useful() {
+    local run_id="${GITHUB_RUN_ID:-local}"
+    local run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
+    local volume_suffix="${run_id}-${run_attempt}-existing-$$"
+    local config_volume="peertube-runner-config-smoke-${volume_suffix}"
+    local output_file="entrypoint-existing-config.log"
+    local entrypoint_status
+
+    docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
+    docker volume create "$config_volume" >/dev/null
+    trap "docker volume rm -f '$config_volume' >/dev/null 2>&1 || true" EXIT
+
+    docker run --rm \
+        -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
+        --entrypoint bash \
+        "$IMAGE" \
+        -lc 'mkdir -p /home/runner/.config/peertube-runner-nodejs/default && cat > /home/runner/.config/peertube-runner-nodejs/default/config.toml << EOF
+[jobs]
+concurrency = 2
+
+[ffmpeg]
+threads = 4
+nice = 20
+
+[transcription]
+engine = "whisper-ctranslate2"
+model = "large-v3"
+
+[[registeredInstances]]
+url = "http://127.0.0.1:9"
+runnerToken = "ptrt-00000000-0000-0000-0000-000000000000"
+runnerName = "peertube-runner-smoke"
+EOF'
+
+    set +e
+    timeout 8s docker run --rm \
+        -e PEERTUBE_RUNNER_CONCURRENCY=1 \
+        -e PEERTUBE_RUNNER_FFMPEG_THREADS=1 \
+        -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
+        "$IMAGE" > "$output_file" 2>&1
+    entrypoint_status=$?
+    set -e
+
+    cat "$output_file"
+
+    if [ "$entrypoint_status" -ne 124 ]; then
+        echo "Expected existing-config runner to keep running until the timeout" >&2
+        exit 1
+    fi
+
+    grep -q "Running PeerTube runner in server mode" "$output_file"
+
+    if grep -q "Using existing config file\|Updating config parameters\|Applying runtime config overrides\|Config file location\|Starting PeerTube Runner with command" "$output_file"; then
+        echo "Default existing-config logs should not include wrapper startup details" >&2
+        exit 1
+    fi
+
+    docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
+    trap - EXIT
+}
+
+test_stale_runner_token_is_replaced() {
+    local run_id="${GITHUB_RUN_ID:-local}"
+    local run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
+    local volume_suffix="${run_id}-${run_attempt}-stale-$$"
+    local config_volume="peertube-runner-config-smoke-${volume_suffix}"
+    local output_file="entrypoint-stale-token.log"
+    local server_log="fake-peertube.log"
+    local port=$((18080 + ($$ % 1000)))
+    local fake_server_pid
+    local entrypoint_status
+    local base_url="http://host.docker.internal:${port}"
+
+    python3 - "$port" > "$server_log" 2>&1 <<'PY' &
+import json
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("content-length", "0"))
+        if length:
+            self.rfile.read(length)
+
+        if self.path == "/api/v1/runners/jobs/request":
+            self.send_json(400, {"code": "unknown_runner_token", "detail": "Unknown runner token"})
+            return
+
+        if self.path == "/api/v1/runners/register":
+            self.send_json(200, {"runnerToken": "ptrt-11111111-1111-1111-1111-111111111111"})
+            return
+
+        if self.path == "/api/v1/runners/unregister":
+            self.send_json(200, {})
+            return
+
+        self.send_json(404, {"code": "not_found"})
+
+    def do_GET(self):
+        self.send_json(404, {"code": "not_found"})
+
+    def log_message(self, format, *args):
+        return
+
+    def send_json(self, status, body):
+        data = json.dumps(body).encode("utf-8")
+        self.send_response(status)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+ThreadingHTTPServer(("0.0.0.0", int(sys.argv[1])), Handler).serve_forever()
+PY
+    fake_server_pid=$!
+
+    cleanup_stale_test() {
+        kill "$fake_server_pid" >/dev/null 2>&1 || true
+        docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
+    }
+
+    trap cleanup_stale_test EXIT
+
+    python3 - "$port" <<'PY'
+import socket
+import sys
+import time
+
+port = int(sys.argv[1])
+for _ in range(50):
+    with socket.socket() as sock:
+        sock.settimeout(0.2)
+        if sock.connect_ex(("127.0.0.1", port)) == 0:
+            sys.exit(0)
+    time.sleep(0.1)
+
+sys.exit(1)
+PY
+
+    docker volume rm -f "$config_volume" >/dev/null 2>&1 || true
+    docker volume create "$config_volume" >/dev/null
+
+    docker run --rm \
+        -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
+        --entrypoint bash \
+        "$IMAGE" \
+        -lc "mkdir -p /home/runner/.config/peertube-runner-nodejs/default && cat > /home/runner/.config/peertube-runner-nodejs/default/config.toml << EOF
+[jobs]
+concurrency = 2
+
+[ffmpeg]
+threads = 4
+nice = 20
+
+[transcription]
+engine = \"whisper-ctranslate2\"
+model = \"large-v3\"
+
+[[registeredInstances]]
+url = \"${base_url}\"
+runnerToken = \"ptrt-00000000-0000-0000-0000-000000000000\"
+runnerName = \"peertube-runner-smoke\"
+EOF"
+
+    set +e
+    timeout 25s docker run --rm \
+        --add-host=host.docker.internal:host-gateway \
+        -e PEERTUBE_RUNNER_URL="$base_url" \
+        -e PEERTUBE_RUNNER_TOKEN=ptrrt-00000000-0000-0000-0000-000000000000 \
+        -e PEERTUBE_RUNNER_NAME=peertube-runner-smoke \
+        -e PEERTUBE_RUNNER_NAME_CONFLICT=exit \
+        -v "$config_volume:/home/runner/.config/peertube-runner-nodejs" \
+        "$IMAGE" > "$output_file" 2>&1
+    entrypoint_status=$?
+    set -e
+
+    cat "$output_file"
+
+    if [ "$entrypoint_status" -ne 124 ]; then
+        echo "Expected recovered runner to keep running until the timeout" >&2
+        exit 1
+    fi
+
+    grep -q "Persisted runner registration is no longer accepted by PeerTube" "$output_file"
+    grep -q "Runner registered successfully with name 'peertube-runner-smoke'" "$output_file"
+
+    cleanup_stale_test
+    trap - EXIT
+}
+
 run_tool_smoke_tests
 test_entrypoint_repairs_root_owned_volumes
 test_registration_logs_are_concise
+test_debug_logs_use_debug_level
+test_existing_config_default_logs_are_useful
+test_stale_runner_token_is_replaced
