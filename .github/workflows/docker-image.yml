@@ -59,7 +59,8 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -version
-          docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -encoders | grep -q h264_nvenc
+          docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -encoders > ffmpeg-encoders.txt
+          grep -q h264_nvenc ffmpeg-encoders.txt
           docker run --rm --entrypoint python "${VALIDATION_IMAGE}" -c "import ctranslate2; print(ctranslate2.__version__)"
           docker run --rm --entrypoint whisper-ctranslate2 "${VALIDATION_IMAGE}" --help
           docker run --rm --entrypoint peertube-runner "${VALIDATION_IMAGE}" --help
