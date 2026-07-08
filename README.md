@@ -25,7 +25,7 @@ docker run -d --name peertube-runner-gpu \
 - FFmpeg with NVENC wrapper for H.264 and H.265 transcoding
 - Whisper-CTranslate2 transcription support
 - Environment-variable or file-based runner configuration
-- Non-root container user
+- Runner process runs as a non-root user
 - Automated image publishing to Docker Hub and GitHub Container Registry
 
 ## Supported Job Types
@@ -151,15 +151,14 @@ For registration issues, verify:
 - `PEERTUBE_RUNNER_TOKEN` is a registration token
 - `PEERTUBE_RUNNER_NAME` is unique, or `PEERTUBE_RUNNER_NAME_CONFLICT` is set to `auto` or `wait`
 
-If the container logs say it cannot create `/home/runner/.config/peertube-runner-nodejs/default`, the config volume was created with the wrong ownership. Recreate the volume after pulling a fixed image:
+If the container logs say it cannot create `/home/runner/.config/peertube-runner-nodejs/default`, update to the current image and recreate the container:
 
 ```bash
-docker compose down -v
 docker compose pull
-docker compose up -d
+docker compose up -d --force-recreate
 ```
 
-This removes the persisted runner registration and cache for this compose project. Remove stale runner entries from the PeerTube admin UI if the container had already registered timestamped runner names.
+Current images repair persisted config and cache volume ownership before starting the runner process. Remove stale runner entries from the PeerTube admin UI if an older image had already registered timestamped runner names.
 
 ## Images
 

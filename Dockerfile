@@ -9,7 +9,7 @@ ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/bin:${PATH}"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv ffmpeg curl ca-certificates && \
+    python3 python3-venv ffmpeg curl ca-certificates gosu && \
     mv /usr/bin/ffmpeg /usr/local/bin/ffmpeg-real && \
     rm -rf /var/lib/apt/lists/*
 
@@ -37,7 +37,6 @@ RUN useradd -ms /bin/bash runner && \
         /home/runner/.cache \
         /home/runner/.local/share/peertube-runner-nodejs/default && \
     chown -R runner:runner /home/runner
-USER runner
 WORKDIR /home/runner
 
 ENTRYPOINT ["./start.sh"]

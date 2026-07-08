@@ -11,15 +11,28 @@ log_info() {
 }
 
 CONFIG_SOURCE="/home/runner/config.toml"
-CONFIG_TARGET="/home/runner/.config/peertube-runner-nodejs/default/config.toml"
-CONFIG_DIR="/home/runner/.config/peertube-runner-nodejs/default"
-SOCKET_PATH="/home/runner/.local/share/peertube-runner-nodejs/default/peertube-runner.sock"
+CONFIG_ROOT="/home/runner/.config/peertube-runner-nodejs"
+CONFIG_DIR="$CONFIG_ROOT/default"
+CONFIG_TARGET="$CONFIG_DIR/config.toml"
+RUNNER_DATA_ROOT="/home/runner/.local/share/peertube-runner-nodejs"
+RUNNER_DATA_DIR="$RUNNER_DATA_ROOT/default"
+SOCKET_PATH="$RUNNER_DATA_DIR/peertube-runner.sock"
 CACHE_DIR="/home/runner/.cache"
 CONFIG_GENERATED=false
 NEEDS_REGISTRATION=false
 SERVER_PID=""
 
 PEERTUBE_RUNNER_NAME="${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}"
+
+prepare_runner_storage() {
+    mkdir -p "$CONFIG_DIR" "$CACHE_DIR" "$RUNNER_DATA_DIR"
+    chown -R runner:runner "$CONFIG_ROOT" "$CACHE_DIR" "$RUNNER_DATA_ROOT"
+}
+
+if [ "$(id -u)" -eq 0 ]; then
+    prepare_runner_storage
+    exec gosu runner "$0" "$@"
+fi
 
 ensure_writable_directory() {
     local directory="$1"
@@ -40,6 +53,7 @@ ensure_writable_directory() {
 
 ensure_writable_directory "$CONFIG_DIR" "config"
 ensure_writable_directory "$CACHE_DIR" "cache"
+ensure_writable_directory "$RUNNER_DATA_DIR" "runtime data"
 
 runner_token_written() {
     grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" 2>/dev/null &&
