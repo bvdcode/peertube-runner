@@ -13,7 +13,7 @@ log_wrapper() {
         return
     fi
 
-    self_stderr="$(readlink /proc/self/fd/2 2>/dev/null || true)"
+    self_stderr="$(readlink "/proc/$$/fd/2" 2>/dev/null || true)"
     container_stderr="$(readlink /proc/1/fd/2 2>/dev/null || true)"
 
     if [ -n "$container_stderr" ] && [ "$self_stderr" != "$container_stderr" ]; then
