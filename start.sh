@@ -75,6 +75,22 @@ filter_runner_logs() {
             fflush()
         }
 
+        {
+            sub(/\r$/, "")
+        }
+
+        /^Script started on / {
+            next
+        }
+
+        /^Script done on / {
+            next
+        }
+
+        /^Session terminated, killing shell\.\.\. .*killed\.$/ {
+            next
+        }
+
         include_details == "true" {
             emit($0)
             next
@@ -261,6 +277,7 @@ log_debug "Config file location: $CONFIG_TARGET"
 
 start_runner_server() {
     local include_details
+    local server_command
     include_details=$(runner_log_detail_mode)
 
     LOG_PIPE="$RUNNER_DATA_DIR/runner-output.pipe"
@@ -270,7 +287,13 @@ start_runner_server() {
     filter_runner_logs "$include_details" < "$LOG_PIPE" &
     LOG_FILTER_PID=$!
 
-    "${SERVER_CMD[@]}" > "$LOG_PIPE" 2>&1 &
+    printf -v server_command '%q ' "${SERVER_CMD[@]}"
+    script -q -f -e -c "NO_COLOR=1 TERM=dumb ${server_command% }" "$LOG_PIPE" > /dev/null 2>&1 &
+    SERVER_PID=$!
+}
+
+start_runner_server_direct() {
+    "${SERVER_CMD[@]}" &
     SERVER_PID=$!
 }
 
@@ -366,14 +389,19 @@ wait_for_runner_token_validation() {
     local retries=0
 
     while [ "$retries" -lt "$RUNNER_TOKEN_VALIDATION_SECONDS" ]; do
-        if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-            log_error "PeerTube Runner server exited during registration validation"
-            wait "$SERVER_PID" || true
-            return 2
-        fi
-
         if ! runner_token_written; then
             return 1
+        fi
+
+        if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+            wait "$SERVER_PID" || true
+
+            if ! runner_token_written; then
+                return 1
+            fi
+
+            log_error "PeerTube Runner server exited during registration validation"
+            return 2
         fi
 
         sleep 1
@@ -406,10 +434,7 @@ wait_for_log_filter() {
 }
 
 run_server() {
-    start_runner_server
-    trap stop_server INT TERM EXIT
-    wait "$SERVER_PID"
-    wait_for_log_filter
+    exec "${SERVER_CMD[@]}"
 }
 
 run_registration_flow() {
@@ -431,12 +456,14 @@ run_registration_flow() {
 run_persisted_registration_flow() {
     local validation_status
 
-    start_runner_server
+    start_runner_server_direct
     trap stop_server INT TERM EXIT
 
     wait_for_server_socket "$SERVER_PID"
+    set +e
     wait_for_runner_token_validation
     validation_status=$?
+    set -e
 
     if [ "$validation_status" -eq 1 ]; then
         log_info "Persisted runner registration is no longer accepted by PeerTube"

@@ -9,7 +9,7 @@ ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/bin:${PATH}"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv ffmpeg curl ca-certificates gosu && \
+    python3 python3-venv ffmpeg curl ca-certificates gosu bsdutils && \
     mv /usr/bin/ffmpeg /usr/local/bin/ffmpeg-real && \
     rm -rf /var/lib/apt/lists/*
 

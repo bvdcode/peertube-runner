@@ -270,11 +270,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("content-length", "0"))
+        body = {}
         if length:
-            self.rfile.read(length)
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
 
         if self.path == "/api/v1/runners/jobs/request":
-            self.send_json(400, {"code": "unknown_runner_token", "detail": "Unknown runner token"})
+            if body.get("runnerToken") == "ptrt-00000000-0000-0000-0000-000000000000":
+                self.send_json(400, {"code": "unknown_runner_token", "detail": "Unknown runner token"})
+                return
+
+            self.send_json(200, {"availableJobs": []})
             return
 
         if self.path == "/api/v1/runners/register":
