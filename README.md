@@ -14,6 +14,8 @@ docker run -d --name peertube-runner-gpu \
   -e PEERTUBE_RUNNER_URL=https://your-peertube-instance.com \
   -e PEERTUBE_RUNNER_TOKEN=your_registration_token_here \
   -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility \
+  -v peertube-runner-config:/home/runner/.config/peertube-runner-nodejs \
+  -v peertube-runner-cache:/home/runner/.cache \
   bvdcode/peertube-runner-gpu:latest
 ```
 
@@ -52,7 +54,9 @@ Edit `docker-compose.yml` with your PeerTube URL and registration token, then ru
 docker compose up -d
 ```
 
-The compose file uses environment variables by default. To use file-based runner settings, copy `config.example.toml` to `config.toml`, edit it, and uncomment the volume mount in `docker-compose.yml`. Keep `PEERTUBE_RUNNER_URL` and `PEERTUBE_RUNNER_TOKEN` set for first-time registration unless your config already contains a registered runner token.
+The compose file persists `/home/runner/.config/peertube-runner-nodejs` and `/home/runner/.cache` in named volumes. Keep these volumes unless you intentionally want to re-register the runner and re-download cached transcription models.
+
+The compose file uses environment variables by default. To seed runner settings from a config file, copy `config.example.toml` to `config.toml`, edit it, and add `./config.toml:/home/runner/config.toml:ro` to the existing `volumes` list. Keep `PEERTUBE_RUNNER_URL` and `PEERTUBE_RUNNER_TOKEN` set for first-time registration unless your persisted runtime config already contains a registered runner token.
 
 For CPU-only use, remove the `deploy.resources.reservations.devices` section from `docker-compose.yml`.
 
@@ -88,6 +92,8 @@ model = "large-v3"
 
 PeerTube Runner writes `[[registeredInstances]]` to its runtime config after successful registration. If you provide a fully registered config file yourself, use the runner token stored by PeerTube Runner, not the first-time registration token.
 
+Persisting `/home/runner/.config/peertube-runner-nodejs` preserves that registered runner token across container recreates. Without a persistent config volume, each recreated container starts from a blank config and registers again.
+
 ## Runner Name Conflicts
 
 `PEERTUBE_RUNNER_NAME_CONFLICT` controls behavior when the configured runner name already exists on the PeerTube instance:
@@ -95,6 +101,8 @@ PeerTube Runner writes `[[registeredInstances]]` to its runtime config after suc
 - `exit`: stop with an error
 - `auto`: append a timestamp to the runner name
 - `wait`: retry every 30 seconds until the existing runner is removed
+
+With `auto`, a `400 Bad Request` response saying the runner name already exists is expected when the original name is already registered. The container then registers a timestamped runner name. This is useful for recovery, but a persistent config volume is the preferred way to keep one stable runner identity.
 
 ## Building
 
