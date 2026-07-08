@@ -53,6 +53,22 @@ test_ffmpeg_wrapper_reports_nvenc_fallback() {
     grep -Fq "falling back to original FFmpeg command" "$output_file"
 }
 
+test_ffmpeg_wrapper_reports_selected_nvenc_encoder() {
+    docker run --rm \
+        --entrypoint bash \
+        "$IMAGE" \
+        -lc 'cat > /tmp/ffmpeg-real << EOF
+#!/usr/bin/env bash
+echo "fake direct nvenc"
+exit 0
+EOF
+chmod +x /tmp/ffmpeg-real
+FFMPEG_REAL_PATH=/tmp/ffmpeg-real /usr/local/bin/ffmpeg -c:v h264_nvenc -f null - > /tmp/ffmpeg-wrapper-selected.log 2>&1
+cat /tmp/ffmpeg-wrapper-selected.log
+grep -Fq "[peertube-runner-gpu ffmpeg] NVENC command selected: h264_nvenc" /tmp/ffmpeg-wrapper-selected.log
+grep -Fq "fake direct nvenc" /tmp/ffmpeg-wrapper-selected.log'
+}
+
 wait_for_log_line() {
     local container_name="$1"
     local output_file="$2"
@@ -461,6 +477,7 @@ EOF"
 run_tool_smoke_tests
 test_runner_logger_hides_objects_without_verbose
 test_ffmpeg_wrapper_reports_nvenc_fallback
+test_ffmpeg_wrapper_reports_selected_nvenc_encoder
 test_entrypoint_repairs_root_owned_volumes
 test_registration_logs_are_concise
 test_debug_logs_use_debug_level

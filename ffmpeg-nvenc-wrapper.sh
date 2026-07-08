@@ -32,6 +32,7 @@ fi
 
 ORIG_ARGS=("$@")
 NVENC_CHANGES=()
+NVENC_ENCODERS=()
 
 if [ "${#ORIG_ARGS[@]}" -eq 1 ]; then
     case "${ORIG_ARGS[0]}" in
@@ -49,10 +50,22 @@ for arg in "${ORIG_ARGS[@]}"; do
         libx265)
             NVENC_CHANGES+=("libx265 -> hevc_nvenc")
             ;;
+        h264_nvenc)
+            NVENC_ENCODERS+=("h264_nvenc")
+            ;;
+        hevc_nvenc)
+            NVENC_ENCODERS+=("hevc_nvenc")
+            ;;
     esac
 done
 
 if [ "${#NVENC_CHANGES[@]}" -eq 0 ]; then
+    if [ "${#NVENC_ENCODERS[@]}" -gt 0 ]; then
+        IFS=", "
+        log_wrapper "NVENC command selected: ${NVENC_ENCODERS[*]}"
+        unset IFS
+    fi
+
     exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
 fi
 
