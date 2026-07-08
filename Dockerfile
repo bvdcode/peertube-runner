@@ -1,8 +1,12 @@
 FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
 
+ARG PEERTUBE_RUNNER_VERSION=0.6.0
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV VIRTUAL_ENV="/opt/peertube-runner-venv"
 ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/bin:${PATH}"
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-venv ffmpeg curl ca-certificates && \
@@ -19,7 +23,7 @@ RUN python3 -m venv "${VIRTUAL_ENV}" && \
     ctranslate2==4.6.0 \
     whisper-ctranslate2==0.5.3
 
-RUN npm install -g @peertube/peertube-runner
+RUN npm install -g "@peertube/peertube-runner@${PEERTUBE_RUNNER_VERSION}"
 
 COPY start.sh /home/runner/start.sh
 RUN chmod +x /home/runner/start.sh

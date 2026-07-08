@@ -11,6 +11,7 @@ env:
   DOCKERFILE: Dockerfile
   DOCKER_NAMESPACE: bvdcode
   DOCKER_IMAGE_NAME: peertube-runner-gpu
+  VALIDATION_IMAGE: peertube-runner-gpu:${{ github.sha }}
 
 jobs:
   build:
@@ -45,6 +46,23 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for validation
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.CONTEXT_DIR }}
+          file: ${{ env.DOCKERFILE }}
+          load: true
+          tags: ${{ env.VALIDATION_IMAGE }}
+
+      - name: Smoke test Docker image
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -version
+          docker run --rm --entrypoint ffmpeg "${VALIDATION_IMAGE}" -encoders | grep -q h264_nvenc
+          docker run --rm --entrypoint python "${VALIDATION_IMAGE}" -c "import ctranslate2; print(ctranslate2.__version__)"
+          docker run --rm --entrypoint whisper-ctranslate2 "${VALIDATION_IMAGE}" --help
+          docker run --rm --entrypoint peertube-runner "${VALIDATION_IMAGE}" --help
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
