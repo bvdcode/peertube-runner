@@ -7,18 +7,17 @@ log_wrapper() {
     local self_stderr
     local container_stderr
 
-    echo "$message" >&2
+    if [ -e /proc/1/fd/2 ]; then
+        self_stderr="$(readlink "/proc/$$/fd/2" 2>/dev/null || true)"
+        container_stderr="$(readlink /proc/1/fd/2 2>/dev/null || true)"
+    fi
 
-    if [ ! -e /proc/1/fd/2 ]; then
+    if [ -n "${container_stderr:-}" ] && [ "$self_stderr" != "$container_stderr" ]; then
+        echo "$message" > /proc/1/fd/2 2>/dev/null || true
         return
     fi
 
-    self_stderr="$(readlink "/proc/$$/fd/2" 2>/dev/null || true)"
-    container_stderr="$(readlink /proc/1/fd/2 2>/dev/null || true)"
-
-    if [ -n "$container_stderr" ] && [ "$self_stderr" != "$container_stderr" ]; then
-        echo "$message" > /proc/1/fd/2 2>/dev/null || true
-    fi
+    echo "$message" >&2
 }
 
 REAL_FFMPEG="${FFMPEG_REAL_PATH:-/usr/local/bin/ffmpeg-real}"

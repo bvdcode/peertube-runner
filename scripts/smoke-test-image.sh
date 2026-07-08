@@ -55,18 +55,20 @@ test_ffmpeg_wrapper_reports_nvenc_fallback() {
 
 test_ffmpeg_wrapper_reports_selected_nvenc_encoder() {
     docker run --rm \
-        --entrypoint bash \
+        --entrypoint /usr/local/bin/ffmpeg \
+        -e FFMPEG_REAL_PATH=/bin/true \
         "$IMAGE" \
-        -lc 'cat > /tmp/ffmpeg-real << EOF
-#!/usr/bin/env bash
-echo "fake direct nvenc"
-exit 0
-EOF
-chmod +x /tmp/ffmpeg-real
-FFMPEG_REAL_PATH=/tmp/ffmpeg-real /usr/local/bin/ffmpeg -c:v h264_nvenc -f null - > /tmp/ffmpeg-wrapper-selected.log 2>&1
-cat /tmp/ffmpeg-wrapper-selected.log
-grep -Fq "[peertube-runner-gpu ffmpeg] NVENC command selected: h264_nvenc" /tmp/ffmpeg-wrapper-selected.log
-grep -Fq "fake direct nvenc" /tmp/ffmpeg-wrapper-selected.log'
+        -c:v h264_nvenc \
+        -f null - > ffmpeg-wrapper-selected.log 2>&1
+
+    cat ffmpeg-wrapper-selected.log
+
+    grep -Fq "[peertube-runner-gpu ffmpeg] NVENC command selected: h264_nvenc" ffmpeg-wrapper-selected.log
+
+    if [ "$(grep -Fc "[peertube-runner-gpu ffmpeg] NVENC command selected: h264_nvenc" ffmpeg-wrapper-selected.log)" -ne 1 ]; then
+        echo "Expected exactly one selected NVENC encoder log line" >&2
+        exit 1
+    fi
 }
 
 wait_for_log_line() {
