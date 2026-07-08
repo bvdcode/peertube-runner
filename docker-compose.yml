@@ -1,4 +1,4 @@
-# This is a sample Docker Compose file for a web applicationservices:
+services:
   peertube-runner-gpu:
     image: bvdcode/peertube-runner-gpu:latest
     container_name: peertube-runner-gpu
@@ -17,12 +17,14 @@
       - PEERTUBE_RUNNER_NAME_CONFLICT=exit            # Action on name conflict: 'exit' (default), 'auto' (generate unique), 'wait' (wait for removal)
       - PEERTUBE_RUNNER_JOB_TYPES=vod-web-video-transcoding,vod-hls-transcoding,vod-audio-merge-transcoding,live-rtmp-hls-transcoding,video-studio-transcoding,video-transcription,generate-video-storyboard # Or empty to enable all jobs
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility # Required for GPU support in ffmpeg
-    # Or just mount your config file instead of using environment variables
-    volumes:
-      - ./config.toml:/home/runner/config.toml:ro
-    # You can attach a GPU to the container if you have one but if you don't have a GPU, you can remove the deploy section - and the container will run without GPU support
+    # To use a config file instead of environment variables, copy config.example.toml to config.toml and mount it.
+    # volumes:
+    #   - ./config.toml:/home/runner/config.toml:ro
+    # You can attach a GPU to the container if you have one.
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

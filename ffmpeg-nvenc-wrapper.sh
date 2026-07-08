@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 REAL_FFMPEG="${FFMPEG_REAL_PATH:-/usr/local/bin/ffmpeg-real}"
-[ ! -x "$REAL_FFMPEG" ] && REAL_FFMPEG="$(command -v ffmpeg-real || true)"
-[ -z "$REAL_FFMPEG" ] && exit 1
+if [ ! -x "$REAL_FFMPEG" ]; then
+    REAL_FFMPEG="$(command -v ffmpeg-real || true)"
+fi
+
+if [ -z "$REAL_FFMPEG" ]; then
+    exit 1
+fi
 
 ORIG_ARGS=("$@")
 
@@ -10,7 +17,7 @@ if [ "${#ORIG_ARGS[@]}" -eq 1 ]; then
     case "${ORIG_ARGS[0]}" in
         -encoders|-decoders|-formats|-version|-buildconf|-codecs|-protocols|-filters|-pix_fmts)
             exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
-        ;;
+            ;;
     esac
 fi
 
@@ -21,30 +28,34 @@ for i in "${!ORIG_ARGS[@]}"; do
         skip_next=false
         continue
     fi
-    
+
     arg="${ORIG_ARGS[$i]}"
     case "$arg" in
-        libx264) NEW_ARGS+=("h264_nvenc") ;;
-        libx265) NEW_ARGS+=("hevc_nvenc") ;;
+        libx264)
+            NEW_ARGS+=("h264_nvenc")
+            ;;
+        libx265)
+            NEW_ARGS+=("hevc_nvenc")
+            ;;
         -preset)
-            NEW_ARGS+=("-preset")
-            NEW_ARGS+=("fast")
+            NEW_ARGS+=("-preset" "fast")
             skip_next=true
             ;;
         -bf)
-            NEW_ARGS+=("-bf")
-            NEW_ARGS+=("3")
+            NEW_ARGS+=("-bf" "3")
             skip_next=true
             ;;
         -b_strategy)
             skip_next=true
             ;;
-        *) NEW_ARGS+=("$arg") ;;
+        *)
+            NEW_ARGS+=("$arg")
+            ;;
     esac
 done
 
 if "$REAL_FFMPEG" "${NEW_ARGS[@]}" 2>/dev/null; then
     exit 0
-else
-    exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"
 fi
+
+exec "$REAL_FFMPEG" "${ORIG_ARGS[@]}"

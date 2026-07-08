@@ -1,71 +1,74 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-# Logging function
 log_info() {
-    local timestamp=$(date '+%H:%M:%S')
-    local milliseconds=$(date '+%3N')
+    local timestamp
+    local milliseconds
+    timestamp=$(date '+%H:%M:%S')
+    milliseconds=$(date '+%3N')
     echo "[${timestamp}.${milliseconds}] INFO ($$): $1"
 }
 
 CONFIG_SOURCE="/home/runner/config.toml"
 CONFIG_TARGET="/home/runner/.config/peertube-runner-nodejs/default/config.toml"
 CONFIG_DIR="/home/runner/.config/peertube-runner-nodejs/default"
+SOCKET_PATH="/home/runner/.local/share/peertube-runner-nodejs/default/peertube-runner.sock"
+CONFIG_GENERATED=false
+NEEDS_REGISTRATION=false
+SERVER_PID=""
 
-# Create config directory if it doesn't exist
+PEERTUBE_RUNNER_NAME="${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}"
+
 mkdir -p "$CONFIG_DIR"
 
-# Check if config already exists in target location
-if [ -f "$CONFIG_TARGET" ]; then
-    log_info "Config file already exists at $CONFIG_TARGET, using existing configuration"
-    
-    # Update dynamic parameters if environment variables are set
-    if [ -n "$PEERTUBE_RUNNER_CONCURRENCY" ] || [ -n "$PEERTUBE_RUNNER_FFMPEG_THREADS" ] || [ -n "$PEERTUBE_RUNNER_FFMPEG_NICE" ] || [ -n "$PEERTUBE_RUNNER_ENGINE" ] || [ -n "$PEERTUBE_RUNNER_WHISPER_MODEL" ]; then
-        log_info "Updating dynamic parameters in existing config..."
-        
-        # Set default values for optional variables
-        PEERTUBE_RUNNER_CONCURRENCY=${PEERTUBE_RUNNER_CONCURRENCY:-2}
-        PEERTUBE_RUNNER_FFMPEG_THREADS=${PEERTUBE_RUNNER_FFMPEG_THREADS:-4}
-        PEERTUBE_RUNNER_FFMPEG_NICE=${PEERTUBE_RUNNER_FFMPEG_NICE:-20}
-        PEERTUBE_RUNNER_ENGINE=${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}
-        PEERTUBE_RUNNER_WHISPER_MODEL=${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}
-        
-        log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
-        log_info "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
-        log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
-        log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
-        log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
-        
-        # Update config values in-place (compatible with GNU and BusyBox sed)
-        sed -i "s/^concurrency *=.*/concurrency = $PEERTUBE_RUNNER_CONCURRENCY/" "$CONFIG_TARGET"
-        sed -i "s/^threads *=.*/threads = $PEERTUBE_RUNNER_FFMPEG_THREADS/" "$CONFIG_TARGET"
-        sed -i "s/^nice *=.*/nice = $PEERTUBE_RUNNER_FFMPEG_NICE/" "$CONFIG_TARGET"
-        sed -i "s/^engine *=.*/engine = \"$PEERTUBE_RUNNER_ENGINE\"/" "$CONFIG_TARGET"
-        sed -i "s/^model *=.*/model = \"$PEERTUBE_RUNNER_WHISPER_MODEL\"/" "$CONFIG_TARGET"
-        log_info "Dynamic parameters updated successfully"
+runner_token_written() {
+    grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" 2>/dev/null &&
+        grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET" 2>/dev/null
+}
+
+apply_dynamic_config() {
+    if [ -z "${PEERTUBE_RUNNER_CONCURRENCY:-}" ] &&
+        [ -z "${PEERTUBE_RUNNER_FFMPEG_THREADS:-}" ] &&
+        [ -z "${PEERTUBE_RUNNER_FFMPEG_NICE:-}" ] &&
+        [ -z "${PEERTUBE_RUNNER_ENGINE:-}" ] &&
+        [ -z "${PEERTUBE_RUNNER_WHISPER_MODEL:-}" ]; then
+        return
     fi
-# Check if external config file exists in source location
-elif [ -f "$CONFIG_SOURCE" ]; then
-    log_info "Found external config file at $CONFIG_SOURCE, copying to $CONFIG_TARGET"
-    cp "$CONFIG_SOURCE" "$CONFIG_TARGET"
-else
-    log_info "No config file found, generating from environment variables"
-    
-    # Check required environment variables
-    if [ -z "$PEERTUBE_RUNNER_URL" ] || [ -z "$PEERTUBE_RUNNER_TOKEN" ]; then
+
+    PEERTUBE_RUNNER_CONCURRENCY="${PEERTUBE_RUNNER_CONCURRENCY:-2}"
+    PEERTUBE_RUNNER_FFMPEG_THREADS="${PEERTUBE_RUNNER_FFMPEG_THREADS:-4}"
+    PEERTUBE_RUNNER_FFMPEG_NICE="${PEERTUBE_RUNNER_FFMPEG_NICE:-20}"
+    PEERTUBE_RUNNER_ENGINE="${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}"
+    PEERTUBE_RUNNER_WHISPER_MODEL="${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}"
+
+    log_info "Updating config parameters"
+    log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
+    log_info "  FFmpeg Threads: $PEERTUBE_RUNNER_FFMPEG_THREADS"
+    log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
+    log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
+    log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
+
+    sed -i "s/^concurrency *=.*/concurrency = $PEERTUBE_RUNNER_CONCURRENCY/" "$CONFIG_TARGET"
+    sed -i "s/^threads *=.*/threads = $PEERTUBE_RUNNER_FFMPEG_THREADS/" "$CONFIG_TARGET"
+    sed -i "s/^nice *=.*/nice = $PEERTUBE_RUNNER_FFMPEG_NICE/" "$CONFIG_TARGET"
+    sed -i "s/^engine *=.*/engine = \"$PEERTUBE_RUNNER_ENGINE\"/" "$CONFIG_TARGET"
+    sed -i "s/^model *=.*/model = \"$PEERTUBE_RUNNER_WHISPER_MODEL\"/" "$CONFIG_TARGET"
+}
+
+generate_config_from_environment() {
+    if [ -z "${PEERTUBE_RUNNER_URL:-}" ] || [ -z "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
         log_info "ERROR: PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required"
         exit 1
     fi
-    
-    # Set default values for optional variables
-    PEERTUBE_RUNNER_CONCURRENCY=${PEERTUBE_RUNNER_CONCURRENCY:-2}
-    PEERTUBE_RUNNER_FFMPEG_THREADS=${PEERTUBE_RUNNER_FFMPEG_THREADS:-4}
-    PEERTUBE_RUNNER_FFMPEG_NICE=${PEERTUBE_RUNNER_FFMPEG_NICE:-20}
-    PEERTUBE_RUNNER_ENGINE=${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}
-    PEERTUBE_RUNNER_WHISPER_MODEL=${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}
-    
-    log_info "Generating config file with the following settings:"
+
+    PEERTUBE_RUNNER_CONCURRENCY="${PEERTUBE_RUNNER_CONCURRENCY:-2}"
+    PEERTUBE_RUNNER_FFMPEG_THREADS="${PEERTUBE_RUNNER_FFMPEG_THREADS:-4}"
+    PEERTUBE_RUNNER_FFMPEG_NICE="${PEERTUBE_RUNNER_FFMPEG_NICE:-20}"
+    PEERTUBE_RUNNER_ENGINE="${PEERTUBE_RUNNER_ENGINE:-whisper-ctranslate2}"
+    PEERTUBE_RUNNER_WHISPER_MODEL="${PEERTUBE_RUNNER_WHISPER_MODEL:-large-v3}"
+
+    log_info "Generating config file"
     log_info "  URL: $PEERTUBE_RUNNER_URL"
     log_info "  Runner Name: $PEERTUBE_RUNNER_NAME"
     log_info "  Concurrency: $PEERTUBE_RUNNER_CONCURRENCY"
@@ -73,8 +76,7 @@ else
     log_info "  FFmpeg Nice: $PEERTUBE_RUNNER_FFMPEG_NICE"
     log_info "  Transcription Engine: $PEERTUBE_RUNNER_ENGINE"
     log_info "  Whisper Model: $PEERTUBE_RUNNER_WHISPER_MODEL"
-    
-    # Generate config.toml file without registeredInstances
+
     cat > "$CONFIG_TARGET" << EOF
 [jobs]
 concurrency = $PEERTUBE_RUNNER_CONCURRENCY
@@ -88,128 +90,142 @@ engine = "$PEERTUBE_RUNNER_ENGINE"
 model = "$PEERTUBE_RUNNER_WHISPER_MODEL"
 EOF
 
-    log_info "Config file generated successfully"
-    CONFIG_GENERATED="true"
+    CONFIG_GENERATED=true
+}
+
+if [ -f "$CONFIG_TARGET" ]; then
+    log_info "Using existing config file at $CONFIG_TARGET"
+    apply_dynamic_config
+elif [ -f "$CONFIG_SOURCE" ]; then
+    log_info "Copying config file from $CONFIG_SOURCE to $CONFIG_TARGET"
+    cp "$CONFIG_SOURCE" "$CONFIG_TARGET"
+else
+    generate_config_from_environment
 fi
 
-# Set default runner name (used for registration)
-PEERTUBE_RUNNER_NAME=${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}
+if ! runner_token_written; then
+    log_info "No registered runner token found in config"
+    NEEDS_REGISTRATION=true
+else
+    log_info "Registered runner token found in config"
+fi
 
-# Build the server command
-SERVER_CMD="peertube-runner server"
+SERVER_CMD=(peertube-runner server)
 
-# Check if job types are specified
-if [ -n "$PEERTUBE_RUNNER_JOB_TYPES" ]; then
-    log_info "Configuring specific job types: $PEERTUBE_RUNNER_JOB_TYPES"
-    
-    # Split job types by comma and add --enable-job for each
-    IFS=',' read -ra JOB_TYPES <<< "$PEERTUBE_RUNNER_JOB_TYPES"
+if [ -n "${PEERTUBE_RUNNER_JOB_TYPES:-}" ]; then
+    log_info "Configuring job types: $PEERTUBE_RUNNER_JOB_TYPES"
+
+    IFS=',' read -r -a JOB_TYPES <<< "$PEERTUBE_RUNNER_JOB_TYPES"
     for job_type in "${JOB_TYPES[@]}"; do
-        # Trim whitespace
         job_type=$(echo "$job_type" | xargs)
         if [ -n "$job_type" ]; then
-            SERVER_CMD="$SERVER_CMD --enable-job $job_type"
+            SERVER_CMD+=(--enable-job "$job_type")
         fi
     done
 else
-    log_info "No specific job types configured, enabling all jobs"
+    log_info "No specific job types configured"
 fi
 
-log_info "Starting PeerTube Runner with command: $SERVER_CMD"
+printf -v SERVER_CMD_DISPLAY '%q ' "${SERVER_CMD[@]}"
+log_info "Starting PeerTube Runner with command: ${SERVER_CMD_DISPLAY% }"
 log_info "Config file location: $CONFIG_TARGET"
 
-# Check if runner is registered by looking for registeredInstances section
-NEEDS_REGISTRATION=false
-if ! grep -q "^\[\[registeredInstances\]\]" "$CONFIG_TARGET" 2>/dev/null; then
-    log_info "No registered instances found in config, registration needed"
-    NEEDS_REGISTRATION=true
-else
-    log_info "Found registered instances in config"
-fi
-
-# Function to register runner (must be called after server is started)
 register_runner() {
     local runner_name="$PEERTUBE_RUNNER_NAME"
     local name_conflict_action="${PEERTUBE_RUNNER_NAME_CONFLICT:-exit}"
-    local socket_path="/home/runner/.local/share/peertube-runner-nodejs/default/peertube-runner.sock"
-    
+    local reg_output
+    local reg_status
+
     log_info "Name conflict resolution mode: $name_conflict_action"
-    
-    # Wait for server socket to be available
-    log_info "Waiting for PeerTube Runner server socket..."
-    local retries=0
-    while [ ! -S "$socket_path" ] && [ $retries -lt 30 ]; do
-        sleep 1
-        retries=$((retries + 1))
-    done
-    
-    if [ ! -S "$socket_path" ]; then
-        log_info "ERROR: Server socket not available after 30 seconds"
-        return 1
-    fi
-    log_info "Server socket is ready"
-    
+
     while true; do
-        log_info "Registering runner with name '$runner_name'..."
-        
-        # Capture output and status (set +e to prevent exit on registration failure)
+        log_info "Registering runner with name '$runner_name'"
+
         set +e
-        REG_OUTPUT=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
-        REG_STATUS=$?
+        reg_output=$(peertube-runner register --url "$PEERTUBE_RUNNER_URL" --registration-token "$PEERTUBE_RUNNER_TOKEN" --runner-name "$runner_name" 2>&1)
+        reg_status=$?
         set -e
-        
-        # Treat registration as successful only if the config now contains a runner token.
-        if grep -q '^\[\[registeredInstances\]\]' "$CONFIG_TARGET" 2>/dev/null && grep -q '^runnerToken *= *"ptrt-' "$CONFIG_TARGET" 2>/dev/null; then
-            log_info "Runner registered successfully with name '$runner_name'!"
+
+        if runner_token_written; then
+            log_info "Runner registered successfully with name '$runner_name'"
             return 0
         fi
 
-        if echo "$REG_OUTPUT" | grep -q 'This runner name already exists on this instance' 2>/dev/null; then
+        if echo "$reg_output" | grep -q 'This runner name already exists on this instance' 2>/dev/null; then
             log_info "Runner name '$runner_name' already exists on this instance"
 
             case "$name_conflict_action" in
                 "auto")
-                    # Generate unique name with timestamp
                     local timestamp
                     timestamp=$(date +%s)
                     runner_name="${PEERTUBE_RUNNER_NAME}-${timestamp}"
-                    log_info "Auto-generating unique name: '$runner_name'"
+                    log_info "Using generated runner name '$runner_name'"
                     ;;
                 "wait")
-                    log_info "Waiting for existing runner to be removed. Will retry in 30 seconds..."
-                    log_info "Please remove the existing runner '$runner_name' from your PeerTube instance or set PEERTUBE_RUNNER_NAME_CONFLICT=auto"
+                    log_info "Waiting for existing runner to be removed"
                     sleep 30
                     ;;
                 "exit"|*)
-                    log_info "Runner name conflict detected. Please either:"
-                    log_info "  1. Remove the existing runner '$runner_name' from your PeerTube instance"
-                    log_info "  2. Set PEERTUBE_RUNNER_NAME_CONFLICT=auto to auto-generate unique names"
-                    log_info "  3. Set PEERTUBE_RUNNER_NAME_CONFLICT=wait to wait for manual removal"
-                    log_info "  4. Change PEERTUBE_RUNNER_NAME to a different value"
-                    exit 1
+                    log_info "Runner name conflict detected"
+                    log_info "Remove the existing runner, change PEERTUBE_RUNNER_NAME, or set PEERTUBE_RUNNER_NAME_CONFLICT to auto or wait"
+                    return 1
                     ;;
             esac
         else
-            if [ $REG_STATUS -eq 0 ]; then
-                log_info "Registration command exited successfully, but no runner token was written to config. Treating as failure."
+            if [ "$reg_status" -eq 0 ]; then
+                log_info "Registration command exited successfully, but no runner token was written to config"
             fi
-            log_info "Failed to register runner. Output: $REG_OUTPUT"
-            exit 1
+            log_info "Failed to register runner. Output: $reg_output"
+            return 1
         fi
     done
 }
 
-# Start registration in background if needed (server must be running first)
-if [ "$CONFIG_GENERATED" = "true" ] || [ "$NEEDS_REGISTRATION" = "true" ]; then
-    if [ -n "$PEERTUBE_RUNNER_URL" ] && [ -n "$PEERTUBE_RUNNER_TOKEN" ]; then
-        register_runner &
-        REGISTER_PID=$!
-    else
-        log_info "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN not provided"
+wait_for_server_socket() {
+    local server_pid="$1"
+    local retries=0
+
+    log_info "Waiting for PeerTube Runner server socket"
+    while [ ! -S "$SOCKET_PATH" ] && [ "$retries" -lt 30 ]; do
+        if ! kill -0 "$server_pid" 2>/dev/null; then
+            log_info "ERROR: PeerTube Runner server exited before creating socket"
+            wait "$server_pid" || true
+            return 1
+        fi
+
+        sleep 1
+        retries=$((retries + 1))
+    done
+
+    if [ ! -S "$SOCKET_PATH" ]; then
+        log_info "ERROR: Server socket not available after 30 seconds"
+        return 1
+    fi
+
+    log_info "Server socket is ready"
+}
+
+stop_server() {
+    if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+        kill "$SERVER_PID"
+        wait "$SERVER_PID" || true
+    fi
+}
+
+if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
+    if [ -z "${PEERTUBE_RUNNER_URL:-}" ] || [ -z "${PEERTUBE_RUNNER_TOKEN:-}" ]; then
+        log_info "Registration needed but PEERTUBE_RUNNER_URL or PEERTUBE_RUNNER_TOKEN is missing"
         exit 1
     fi
+
+    "${SERVER_CMD[@]}" &
+    SERVER_PID=$!
+    trap stop_server INT TERM EXIT
+
+    wait_for_server_socket "$SERVER_PID"
+    register_runner
+
+    wait "$SERVER_PID"
+else
+    exec "${SERVER_CMD[@]}"
 fi
-
-# Start the server (this will allow register_runner to connect via socket)
-exec $SERVER_CMD
-

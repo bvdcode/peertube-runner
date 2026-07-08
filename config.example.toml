@@ -11,5 +11,5 @@ model = "large-v3"
 
 [[registeredInstances]]
 url = "https://peertube.example.com"
-runnerToken = "ptrt-abcdef12-abcd-ef12-3456-abcdef123456"
-runnerName = "lenovo-prod"
+runnerToken = "ptrt-example"
+runnerName = "peertube-runner-gpu"

@@ -3,117 +3,73 @@
 ![Docker Pulls](https://img.shields.io/docker/pulls/bvdcode/peertube-runner-gpu)
 ![Docker Tag](https://img.shields.io/docker/v/bvdcode/peertube-runner-gpu)
 
-**A Docker container for running PeerTube Runner with GPU acceleration for video transcoding and transcription tasks.**
+Docker image for running PeerTube Runner with NVIDIA acceleration for video transcoding and speech transcription tasks.
 
-## TL;DR
+## Quick Start
 
 ```bash
 docker run -d --name peertube-runner-gpu \
-  --gpus all --restart unless-stopped \
+  --gpus all \
+  --restart unless-stopped \
   -e PEERTUBE_RUNNER_URL=https://your-peertube-instance.com \
-  -e PEERTUBE_RUNNER_TOKEN=your_token_here \
+  -e PEERTUBE_RUNNER_TOKEN=your_registration_token_here \
   -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility \
   bvdcode/peertube-runner-gpu:latest
 ```
 
-**Key Features:**
-
-- ✅ **Smart NVENC Encoding**: Automatically uses GPU encoding when available, falls back to CPU if needed
-- ✅ **Reliable Registration**: Fixed registration logic that accurately reports success/failure
-- ✅ **GPU Transcription**: Whisper models run on GPU via CTranslate2
-- ✅ **Model Auto-Download**: Whisper models download automatically on first use
-- ✅ **Persistent Cache**: Mount `/home/runner/.cache/` to preserve downloaded models across restarts
-
-## Overview
-
-This project provides a containerized PeerTube Runner with NVIDIA CUDA support, designed for hardware-accelerated video processing including transcoding and transcription using Whisper and CTranslate2. The container supports all major PeerTube job types and is optimized for efficient processing in a PeerTube environment.
-
 ## Features
 
-- 🚀 **GPU Acceleration**: NVIDIA CUDA 12.8.0 support with cuDNN runtime on Ubuntu 24.04
-- � **Video Transcoding**: Support for VOD web video, HLS, audio merge transcoding
-- 📺 **Live Streaming**: Live RTMP to HLS transcoding support
-- 🎬 **Video Studio**: Video studio transcoding capabilities
-- 🎵 **Video Transcription**: AI-powered transcription using Whisper-CTranslate2
-- 🐳 **Docker Ready**: Easy deployment with Docker and Docker Compose
-- 🔧 **Flexible Configuration**: Environment variables or config file support
-- ⚙️ **Auto-building**: GitHub Actions for automated Docker image builds
-- 🏃 **Production Ready**: Based on Ubuntu 24.04 with optimized dependencies
+- NVIDIA CUDA 12.8.0 with cuDNN runtime on Ubuntu 24.04
+- FFmpeg with NVENC wrapper for H.264 and H.265 transcoding
+- Whisper-CTranslate2 transcription support
+- Environment-variable or file-based runner configuration
+- Non-root container user
+- Automated image publishing to Docker Hub and GitHub Container Registry
 
 ## Supported Job Types
 
-- `vod-web-video-transcoding` - Video-on-demand web video transcoding
-- `vod-hls-transcoding` - HLS video transcoding
-- `vod-audio-merge-transcoding` - Audio merge transcoding
-- `live-rtmp-hls-transcoding` - Live streaming transcoding
-- `video-studio-transcoding` - Video studio editing transcoding
-- `video-transcription` - AI-powered video transcription
-- `generate-video-storyboard` - Video storyboard generation
+- `vod-web-video-transcoding`
+- `vod-hls-transcoding`
+- `vod-audio-merge-transcoding`
+- `live-rtmp-hls-transcoding`
+- `video-studio-transcoding`
+- `video-transcription`
+- `generate-video-storyboard`
 
 ## Prerequisites
 
-- Docker and Docker Compose installed
-- NVIDIA GPU with CUDA support (optional, container can run without GPU)
-- NVIDIA Container Toolkit for GPU acceleration
+- Docker and Docker Compose
+- NVIDIA Container Toolkit for GPU access
+- NVIDIA driver compatible with CUDA 12.8
 
-### Installing NVIDIA Container Toolkit
+The container can start without a GPU, but GPU transcoding and GPU transcription require the NVIDIA runtime.
 
-For Ubuntu/Debian:
+## Docker Compose
 
-```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-sudo systemctl restart docker
-```
-
-## Quick Start
-
-**Using Docker Compose (Recommended):**
+Edit `docker-compose.yml` with your PeerTube URL and registration token, then run:
 
 ```bash
-git clone https://github.com/bvdcode/peertube-runner.git
-cd peertube-runner
-# Edit docker-compose.yml with your URL and token
-docker-compose up -d
+docker compose up -d
 ```
 
-**Using Docker Run:**
+The compose file uses environment variables by default. To use a file instead, copy `config.example.toml` to `config.toml`, edit it, and uncomment the volume mount in `docker-compose.yml`.
 
-```bash
-docker run -d --name peertube-runner-gpu --gpus all --restart unless-stopped \
-  -e PEERTUBE_RUNNER_URL=https://your-instance.com \
-  -e PEERTUBE_RUNNER_TOKEN=your_token \
-  bvdcode/peertube-runner-gpu:latest
-```
-
-**With Config File:**
-
-Mount your `config.toml` to `/home/runner/config.toml:ro` in volumes.
-
-## Configuration Options
-
-### Environment Variables
+## Configuration
 
 | Variable                         | Default               | Description                                     |
 | -------------------------------- | --------------------- | ----------------------------------------------- |
-| `PEERTUBE_RUNNER_URL`            | _Required_            | Your PeerTube instance URL                      |
-| `PEERTUBE_RUNNER_TOKEN`          | _Required_            | Runner registration token                       |
-| `PEERTUBE_RUNNER_NAME`           | `peertube-runner-gpu` | Custom name for the runner                      |
-| `PEERTUBE_RUNNER_NAME_CONFLICT`  | `exit`                | Action on name conflict: `exit`, `auto`, `wait` |
+| `PEERTUBE_RUNNER_URL`            | Required              | PeerTube instance URL                           |
+| `PEERTUBE_RUNNER_TOKEN`          | Required              | PeerTube runner registration token              |
+| `PEERTUBE_RUNNER_NAME`           | `peertube-runner-gpu` | Runner name                                     |
+| `PEERTUBE_RUNNER_NAME_CONFLICT`  | `exit`                | `exit`, `auto`, or `wait`                       |
 | `PEERTUBE_RUNNER_CONCURRENCY`    | `2`                   | Number of concurrent jobs                       |
 | `PEERTUBE_RUNNER_FFMPEG_THREADS` | `4`                   | FFmpeg thread count                             |
 | `PEERTUBE_RUNNER_FFMPEG_NICE`    | `20`                  | FFmpeg process priority                         |
 | `PEERTUBE_RUNNER_ENGINE`         | `whisper-ctranslate2` | Transcription engine                            |
-| `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model size                              |
-| `PEERTUBE_RUNNER_JOB_TYPES`      | _All jobs_            | Comma-separated job types                       |
+| `PEERTUBE_RUNNER_WHISPER_MODEL`  | `large-v3`            | Whisper model                                   |
+| `PEERTUBE_RUNNER_JOB_TYPES`      | All jobs              | Comma-separated job types                       |
 
-### Configuration File Format
-
-Alternatively, you can use a `config.toml` file:
+Example `config.toml`:
 
 ```toml
 [jobs]
@@ -130,330 +86,73 @@ model = "large-v3"
 [[registeredInstances]]
 url = "https://your-peertube-instance.com"
 runnerToken = "your_runner_token_here"
-runnerName = "my-custom-runner"
+runnerName = "peertube-runner-gpu"
 ```
 
-### Whisper Models Available
+## Runner Name Conflicts
 
-- `tiny` - Fastest, least accurate (39 MB)
-- `base` - Good speed/accuracy balance (74 MB)
-- `small` - Better accuracy (244 MB)
-- `medium` - High accuracy (769 MB)
-- `large-v2` - Very high accuracy (1550 MB)
-- `large-v3` - Best accuracy (1550 MB, **default**)
+`PEERTUBE_RUNNER_NAME_CONFLICT` controls behavior when the configured runner name already exists on the PeerTube instance:
 
-### Job Type Configuration
+- `exit`: stop with an error
+- `auto`: append a timestamp to the runner name
+- `wait`: retry every 30 seconds until the existing runner is removed
 
-You can limit the runner to specific job types by setting `PEERTUBE_RUNNER_JOB_TYPES`:
+## Building
 
 ```bash
-# Only transcription jobs
-PEERTUBE_RUNNER_JOB_TYPES=video-transcription
-
-# Multiple job types
-PEERTUBE_RUNNER_JOB_TYPES=vod-hls-transcoding,video-transcription,video-studio-transcoding,generate-video-storyboard
-
-# All jobs (default if not specified)
-# Leave empty or omit the variable
-```
-
-### Name Conflict Resolution
-
-Control how the runner behaves when a runner with the same name already exists on the PeerTube instance:
-
-#### `PEERTUBE_RUNNER_NAME_CONFLICT=exit` (default)
-
-Exits with an error message and instructions when a name conflict occurs:
-
-```bash
-PEERTUBE_RUNNER_NAME_CONFLICT=exit
-```
-
-**Use case**: Strict environments where you want to manually manage runner names.
-
-#### `PEERTUBE_RUNNER_NAME_CONFLICT=auto`
-
-Automatically generates unique names by appending a timestamp:
-
-```bash
-PEERTUBE_RUNNER_NAME_CONFLICT=auto
-```
-
-**Example**: `peertube-runner-gpu` → `peertube-runner-gpu-1753501234`
-
-**Use case**: Development or testing environments where you want hassle-free deployment.
-
-#### `PEERTUBE_RUNNER_NAME_CONFLICT=wait`
-
-Waits for the existing runner to be removed, checking every 30 seconds:
-
-```bash
-PEERTUBE_RUNNER_NAME_CONFLICT=wait
-```
-
-**Use case**: When replacing an existing runner and you want to wait for manual cleanup.
-
-## Docker Images
-
-### Available Tags
-
-- `bvdcode/peertube-runner-gpu:latest` - Latest stable version
-- `ghcr.io/bvdcode/peertube-runner-gpu:latest` - GitHub Container Registry
-
-### Automated Builds
-
-The project uses GitHub Actions for automated builds:
-
-- Builds trigger on pushes to `main` branch
-- Images are published to both Docker Hub and GitHub Container Registry
-- Manual builds can be triggered via workflow dispatch
-
-## Architecture & Components
-
-### Software Stack
-
-- **Base Image**: NVIDIA CUDA 12.8.0 with cuDNN runtime on Ubuntu 24.04
-- **Python**: Python 3 with an isolated virtual environment
-- **Node.js**: Node.js 20.x LTS
-- **FFmpeg**: For video processing and transcoding
-- **PeerTube Runner**: Latest version from npm
-
-### Python Packages
-
-- **CTranslate2 4.6.0**: Optimized inference library for Transformer models
-- **Whisper-CTranslate2 0.5.3**: Fast implementation of OpenAI's Whisper speech recognition
-
-### Container Features
-
-- Non-root user execution for security
-- Automatic configuration generation from environment variables
-- Flexible job type selection
-- GPU resource reservation with Docker Compose
-- Persistent configuration via volume mounts
-
-## Building from Source
-
-To build the Docker image locally:
-
-```bash
-git clone https://github.com/bvdcode/peertube-runner.git
-cd peertube-runner
 docker build -t peertube-runner-gpu .
 ```
 
-### Build Arguments
-
-The Dockerfile supports standard Docker build arguments and will automatically install all dependencies.
-
-## How It Works
-
-When the container starts, it will:
-
-1. **Configuration Setup**: Check for existing config file or generate from environment variables
-2. **PeerTube Connection**: Connect to your PeerTube instance using provided URL and token
-3. **Runner Registration**: Register as a runner with specified capabilities
-4. **Job Processing**: Accept and process jobs based on configured job types:
-   - Video transcoding jobs use FFmpeg with GPU encoding when available
-   - Transcription jobs use Whisper with GPU acceleration
-   - All jobs respect concurrency limits
-5. **Smart Encoding**: Automatically uses NVENC GPU encoding, falls back to CPU if GPU unavailable
-6. **Non-root Execution**: Runs as `runner` user for security
-   **Transcription Only (GPU):**
-
-```yaml
-environment:
-  - PEERTUBE_RUNNER_JOB_TYPES=video-transcription
-  - PEERTUBE_RUNNER_WHISPER_MODEL=medium
-```
-
-**High-Performance Transcoding:**
-
-```yaml
-environment:
-  - PEERTUBE_RUNNER_CONCURRENCY=4
-  - PEERTUBE_RUNNER_FFMPEG_THREADS=8
-```
-
-**CPU-Only (No GPU):**
-
-```yaml
-environment:
-  - PEERTUBE_RUNNER_ENGINE=whisper-ffmpeg
-  - PEERTUBE_RUNNER_WHISPER_MODEL=base
-# Remove deploy.resources section
-```
-
-**Auto-Generated Names (Dev/Testing):**
-
-```yaml
-environment:
-  - PEERTUBE_RUNNER_NAME_CONFLICT=auto  # Adds timestamp if name exists
-          devices:
-            - capabilities: [gpu]
-```
-
-## Monitoring & Management
-
-### Viewing Logs
+The PeerTube Runner npm package is pinned by the `PEERTUBE_RUNNER_VERSION` build argument.
 
 ```bash
-# Real-time logs
-docker-compose logs -f peertube-runner-gpu
-
-# Last 100 lines
-docker-compose logs --tail 100 peertube-runner-gpu
+docker build --build-arg PEERTUBE_RUNNER_VERSION=0.6.0 -t peertube-runner-gpu .
 ```
 
-### Container Status
+## Smoke Tests
 
 ```bash
-# Check container status
-docker-compose ps
+docker run --rm --entrypoint ffmpeg peertube-runner-gpu -version
+docker run --rm --entrypoint ffmpeg peertube-runner-gpu -encoders
+docker run --rm --entrypoint python peertube-runner-gpu -c "import ctranslate2; print(ctranslate2.__version__)"
+docker run --rm --entrypoint whisper-ctranslate2 peertube-runner-gpu --help
+docker run --rm --entrypoint peertube-runner peertube-runner-gpu --help
+docker run --rm --gpus all --entrypoint nvidia-smi peertube-runner-gpu
+```
 
-# Check resource usage
+## Monitoring
+
+```bash
+docker compose logs -f peertube-runner-gpu
+docker compose ps
 docker stats peertube-runner-gpu
-```
-
-### GPU Monitoring
-
-```bash
-# Check GPU usage inside container
 docker exec peertube-runner-gpu nvidia-smi
-
-# Monitor GPU usage in real-time
-watch -n 1 'docker exec peertube-runner-gpu nvidia-smi'
 ```
 
 ## Troubleshooting
 
-### Common Issues
-
-#### 1. GPU Not Available
-
-**Error**: `CUDA driver version is insufficient` or `nvidia-smi not found`
-
-**Solution**:
-
-1. Verify NVIDIA drivers are installed:
+For GPU issues, verify the host driver and Docker runtime:
 
 ```bash
 nvidia-smi
-```
-
-2. Check Docker can access GPU:
-
-```bash
 docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu24.04 nvidia-smi
 ```
 
-3. Ensure nvidia-container-toolkit is installed and Docker is restarted.
+For registration issues, verify:
 
-#### 2. Configuration Issues
+- `PEERTUBE_RUNNER_URL` is reachable from the container
+- `PEERTUBE_RUNNER_TOKEN` is a registration token
+- `PEERTUBE_RUNNER_NAME` is unique, or `PEERTUBE_RUNNER_NAME_CONFLICT` is set to `auto` or `wait`
 
-**Error**: `PEERTUBE_RUNNER_URL and PEERTUBE_RUNNER_TOKEN environment variables are required`
+## Images
 
-**Solution**:
+- `bvdcode/peertube-runner-gpu:latest`
+- `ghcr.io/bvdcode/peertube-runner-gpu:latest`
 
-- Verify environment variables are set in docker-compose.yml
-- Check that config.toml file exists if using file-based configuration
-- Ensure proper escaping of special characters in tokens
+## Related Projects
 
-#### 3. Connection Issues
-
-**Error**: `Failed to connect to PeerTube instance`
-
-**Solution**:
-
-- Verify PeerTube instance URL is accessible from the container
-- Check firewall rules and network connectivity
-- Ensure runner token is valid and not expired
-- Test connection: `curl -I https://your-peertube-instance.com`
-
-#### 4. Job Processing Issues
-
-**Error**: Jobs not being picked up or failing
-
-**Solution**:
-
-- Check PeerTube instance runner configuration
-- Verify job types are properly configured
-- Monitor logs for specific error messages
-- Ensure sufficient disk space and memory
-
-### Performance Tuning
-
-#### Memory Optimization
-
-**GPU Not Detected:**
-
-- Check: `nvidia-smi` on host
-- Verify: `docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu24.04 nvidia-smi`
-- Install nvidia-container-toolkit if missing
-
-**"NVENC not available" in logs:**
-
-- Container works fine without GPU, just uses CPU en
-
-- Check URL is accessible: `curl -I https://your-instance.com`
-- Verify token format: `ptrrt-...` (registration token, not runner token)
-- Name conflict? Use `PEERTUBE_RUNNER_NAME_CONFLICT=auto`
-
-**Performance Tuning:**
-
-# Low memory:
-- PEERTUBE_RUNNER_WHISPER_MODEL=small
-- PEERTUBE_RUNNER_CONCURRENCY=1
-
-# High performance:
-- PEERTUBE_RUNNER_CONCURRENCY=6
-- PEERTUBE_RUNNER_FFMPEG_THREADS=12
-### Q: How do I update to the latest version?
-
-**A**: Run `docker-compose pull` followed by `docker-compose up -d`.
-
-## Support & Community
-
-- **Issues**: [GitHub Issues](https://github.com/bvdcode/peertube-runner/issues)
-- **PeerTube Documentation**: [Official Docs](https://docs.joinpeertube.org/maintain/tools#configuration)
-- **Docker Hub**: [bvdcode/peertube-runner-gpu](https://hub.docker.com/r/bvdcode/peertube-runner-gpu)
-
-## License
-
-This project is open source. Please check the license file for details.
-
-## Related Projects & Links
-
-- **[PeerTube](https://github.com/Chocobozzz/PeerTube)** - Federated video hosting network
-- **[PeerTube Runner](https://www.npmjs.com/package/@peertube/peertube-runner)** - Official PeerTube runner package
-- **[Whisper-CTranslate2](https://github.com/guillaumekln/faster-whisper)** - Fast Whisper implementation
-- **[CTranslate2](https://github.com/OpenNMT/CTranslate2)** - Optimized inference library
-- **[NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-container-toolkit)** - GPU support for containers
-
-## Acknowledgments
-
-- PeerTube team for the excellent video platform and runner system
-- OpenAI for Whisper speech recognition model
-- NVIDIA for CUDA toolkit and container support
-- Contributors and users of this project
-
----
-
-**Built with ❤️ for the PeerTube community**
-
-For more information about PeerTube runners, visit the [official documentation](https://docs.joinpeertube.org/maintain/tools#configuration).
-FAQ
-
-**Q: Does it work without GPU?**
-A: Yes! Auto-detects and falls back to CPU. Remove `deploy.resources` section for CPU-only.
-
-**Q: Which Whisper model?**
-A: Quality: `large-v3` > `large-v2` > `medium` > `small` > `base` > `tiny`. Use `small`/`base` for CPU.
-
-**Q: Multiple runners on one machine?**
-A: Yes, use different container/runner names for each.
-
-**Q: Runner name already exists?**
-A: Set `PEERTUBE_RUNNER_NAME_CONFLICT=auto` to auto-generate unique names with timestamp.
-
-**Q: How to update?**
-A: `docker-compose pull && docker-compose up -d`
+- [PeerTube](https://github.com/Chocobozzz/PeerTube)
+- [PeerTube Runner](https://www.npmjs.com/package/@peertube/peertube-runner)
+- [Whisper-CTranslate2](https://github.com/Softcatala/whisper-ctranslate2)
+- [CTranslate2](https://github.com/OpenNMT/CTranslate2)
+- [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-container-toolkit)
