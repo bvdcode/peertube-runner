@@ -37,6 +37,8 @@ CACHE_DIR="/home/runner/.cache"
 CONFIG_GENERATED=false
 NEEDS_REGISTRATION=false
 SERVER_PID=""
+LOG_FILTER_PID=""
+LOG_PIPE=""
 RUNNER_TOKEN_VALIDATION_SECONDS=15
 
 PEERTUBE_RUNNER_NAME="${PEERTUBE_RUNNER_NAME:-peertube-runner-gpu}"
@@ -261,7 +263,14 @@ start_runner_server() {
     local include_details
     include_details=$(runner_log_detail_mode)
 
-    "${SERVER_CMD[@]}" > >(filter_runner_logs "$include_details") 2>&1 &
+    LOG_PIPE="$RUNNER_DATA_DIR/runner-output.pipe"
+    rm -f "$LOG_PIPE"
+    mkfifo "$LOG_PIPE"
+
+    filter_runner_logs "$include_details" < "$LOG_PIPE" &
+    LOG_FILTER_PID=$!
+
+    "${SERVER_CMD[@]}" > "$LOG_PIPE" 2>&1 &
     SERVER_PID=$!
 }
 
@@ -379,12 +388,28 @@ stop_server() {
         kill "$SERVER_PID"
         wait "$SERVER_PID" || true
     fi
+
+    wait_for_log_filter
+}
+
+wait_for_log_filter() {
+    if [ -n "$LOG_FILTER_PID" ] && kill -0 "$LOG_FILTER_PID" 2>/dev/null; then
+        wait "$LOG_FILTER_PID" || true
+    fi
+
+    if [ -n "$LOG_PIPE" ]; then
+        rm -f "$LOG_PIPE"
+    fi
+
+    LOG_FILTER_PID=""
+    LOG_PIPE=""
 }
 
 run_server() {
     start_runner_server
     trap stop_server INT TERM EXIT
     wait "$SERVER_PID"
+    wait_for_log_filter
 }
 
 run_registration_flow() {
@@ -400,6 +425,7 @@ run_registration_flow() {
     register_runner
 
     wait "$SERVER_PID"
+    wait_for_log_filter
 }
 
 run_persisted_registration_flow() {
@@ -425,6 +451,7 @@ run_persisted_registration_flow() {
     fi
 
     wait "$SERVER_PID"
+    wait_for_log_filter
 }
 
 if [ "$NEEDS_REGISTRATION" = "true" ] || [ "$CONFIG_GENERATED" = "true" ]; then
