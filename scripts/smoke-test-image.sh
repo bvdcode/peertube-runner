@@ -18,11 +18,11 @@ run_tool_smoke_tests() {
     docker run --rm --entrypoint peertube-runner "$IMAGE" --help
 }
 
-test_runner_logger_hides_objects_without_verbose() {
+test_runner_logger_patch() {
     docker run --rm \
         --entrypoint sh \
         "$IMAGE" \
-        -lc 'grep -Fq '\''hideObject: !process.argv.includes("--verbose")'\'' "$(npm root -g)/@peertube/peertube-runner/dist/peertube-runner.mjs"'
+        -lc 'runner_file="$(npm root -g)/@peertube/peertube-runner/dist/peertube-runner.mjs" && grep -Fq '\''hideObject: !process.argv.includes("--verbose")'\'' "$runner_file" && grep -Fq '\''logRunnerProcessError(err);'\'' "$runner_file" && grep -Fq '\''Job stderr:'\'' "$runner_file"'
 }
 
 test_ffmpeg_wrapper_reports_nvenc_fallback() {
@@ -477,7 +477,7 @@ EOF"
 }
 
 run_tool_smoke_tests
-test_runner_logger_hides_objects_without_verbose
+test_runner_logger_patch
 test_ffmpeg_wrapper_reports_nvenc_fallback
 test_ffmpeg_wrapper_reports_selected_nvenc_encoder
 test_entrypoint_repairs_root_owned_volumes
