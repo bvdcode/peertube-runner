@@ -1,6 +1,6 @@
-FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
+FROM nvidia/cuda:12.9.2-cudnn-runtime-ubuntu24.04
 
-ARG PEERTUBE_RUNNER_VERSION=0.6.0
+ARG PEERTUBE_RUNNER_VERSION=0.7.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV VIRTUAL_ENV="/opt/peertube-runner-venv"
@@ -20,8 +20,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
 
 RUN python3 -m venv "${VIRTUAL_ENV}" && \
     pip install --no-cache-dir \
-    ctranslate2==4.6.0 \
-    whisper-ctranslate2==0.5.3
+    ctranslate2==4.8.2 \
+    whisper-ctranslate2==0.5.7
 
 COPY patch-peertube-runner-logs.mjs /tmp/patch-peertube-runner-logs.mjs
 RUN npm install -g "@peertube/peertube-runner@${PEERTUBE_RUNNER_VERSION}" && \

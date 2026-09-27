@@ -21,7 +21,7 @@ docker run -d --name peertube-runner-gpu \
 
 ## Features
 
-- NVIDIA CUDA 12.8.0 with cuDNN runtime on Ubuntu 24.04
+- NVIDIA CUDA 12.9.2 with cuDNN runtime on Ubuntu 24.04
 - FFmpeg with NVENC wrapper for H.264 and H.265 transcoding
 - Whisper-CTranslate2 transcription support
 - Environment-variable or file-based runner configuration
@@ -42,9 +42,15 @@ docker run -d --name peertube-runner-gpu \
 
 - Docker and Docker Compose
 - NVIDIA Container Toolkit for GPU access
-- NVIDIA driver compatible with CUDA 12.8
+- NVIDIA driver compatible with CUDA 12.9
 
 The container can start without a GPU if `--gpus all` is omitted. GPU transcoding and GPU transcription require the NVIDIA runtime.
+
+## Version 2.0.0
+
+Version 2.0.0 updates the CUDA runtime from 12.8 to 12.9.2, PeerTube Runner to 0.7.0, CTranslate2 to 4.8.2, and Whisper-CTranslate2 to 0.5.7. For full CUDA 12.9 support, NVIDIA lists Linux driver 575.57.08 or newer and Windows driver 576.57 or newer. Check the host driver before switching to this release.
+
+If the host needs to stay on the previous CUDA 12.8 stack, pin the image to `bvdcode/peertube-runner-gpu:v1.1.19` or `ghcr.io/bvdcode/peertube-runner-gpu:v1.1.19` and verify that release against the host driver. The `latest` tag advances to version 2.0.0 when this release is published.
 
 ## Docker Compose
 
@@ -114,7 +120,7 @@ docker build -t peertube-runner-gpu .
 The PeerTube Runner npm package is pinned by the `PEERTUBE_RUNNER_VERSION` build argument.
 
 ```bash
-docker build --build-arg PEERTUBE_RUNNER_VERSION=0.6.0 -t peertube-runner-gpu .
+docker build --build-arg PEERTUBE_RUNNER_VERSION=0.7.0 -t peertube-runner-gpu .
 ```
 
 ## Smoke Tests
@@ -139,7 +145,7 @@ For GPU issues, verify the host driver and Docker runtime:
 
 ```bash
 nvidia-smi
-docker run --rm --gpus all nvidia/cuda:12.8.0-runtime-ubuntu24.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.9.2-runtime-ubuntu24.04 nvidia-smi
 ```
 
 For registration issues, verify:

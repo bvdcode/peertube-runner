@@ -1,4 +1,4 @@
-next-version: 1.1.1
+next-version: 2.0.0
 branches:
   main:
     mode: ContinuousDeployment
