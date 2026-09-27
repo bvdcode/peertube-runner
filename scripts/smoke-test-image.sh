@@ -10,6 +10,7 @@ if [ -z "$IMAGE" ]; then
 fi
 
 run_tool_smoke_tests() {
+    docker run --rm --entrypoint node "$IMAGE" -e 'if (Number(process.versions.node.split(".")[0]) !== 24) process.exit(1)'
     docker run --rm --entrypoint ffmpeg "$IMAGE" -version
     docker run --rm --entrypoint ffmpeg "$IMAGE" -encoders > ffmpeg-encoders.txt
     grep -Fq h264_nvenc ffmpeg-encoders.txt
