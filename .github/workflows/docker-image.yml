@@ -18,7 +18,7 @@ jobs:
     name: Build and publish Docker image
     runs-on: ubuntu-latest
     outputs:
-      Version: ${{ steps.gitversion.outputs.semVer }}
+      Version: ${{ steps.gitversion.outputs.MajorMinorPatch }}
       VersionSourceDistance: ${{ steps.gitversion.outputs.versionSourceDistance }}
     permissions:
       contents: read
@@ -41,7 +41,7 @@ jobs:
 
       - name: Display GitVersion outputs
         run: |
-          echo "Version: ${{ steps.gitversion.outputs.semVer }}"
+          echo "Version: ${{ steps.gitversion.outputs.MajorMinorPatch }}"
           echo "VersionSourceDistance: ${{ steps.gitversion.outputs.versionSourceDistance }}"
 
       - name: Set up Docker Buildx
@@ -78,11 +78,11 @@ jobs:
           file: ${{ env.DOCKERFILE }}
           push: true
           tags: |
-            ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.gitversion.outputs.semVer }}
-            ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:v${{ steps.gitversion.outputs.semVer }}
+            ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.gitversion.outputs.MajorMinorPatch }}
+            ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:v${{ steps.gitversion.outputs.MajorMinorPatch }}
             ${{ env.DOCKER_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.gitversion.outputs.semVer }}
-            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:v${{ steps.gitversion.outputs.semVer }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.gitversion.outputs.MajorMinorPatch }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:v${{ steps.gitversion.outputs.MajorMinorPatch }}
             ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest
 
   release:
